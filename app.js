@@ -1604,18 +1604,57 @@ app.get('/dashboard', async (req, res) => {
         const birthdayWidget = buildBirthdayWidgetData(birthdayUsers);
 
         if (hasProfessorAccess(req.session.usuario)) {
-            return res.render('dashboardprofessor', { birthdayWidget });
+            const pendingStudentCount = await Usuario.count({
+                where: {
+                    role: 'STD',
+                    user_status: 'P'
+                }
+            });
+            const pendingPresencaCount = await Presenca.count({
+                where: { status: 'P' }
+            });
+
+            return res.render('dashboardprofessor', {
+                birthdayWidget,
+                pendingStudentCount,
+                pendingPresencaCount
+            });
         }
 
-        return res.render('dashboardaluno', { birthdayWidget });
+        const userCode = await getEffectiveUserCode(req);
+        const metaProgress = userCode ? await getCurrentMetaProgressForStudent(userCode) : null;
+        return res.render('dashboardaluno', { birthdayWidget, metaProgress });
     } catch (err) {
         console.error('Erro ao carregar dashboard com aniversariantes:', err);
 
         if (hasProfessorAccess(req.session.usuario)) {
-            return res.render('dashboardprofessor', { birthdayWidget: { currentMonth: new Date().getMonth(), currentMonthLabel: MONTH_NAMES_PT_BR[new Date().getMonth()], birthdays: [] } });
+            const pendingStudentCount = await Usuario.count({
+                where: {
+                    role: 'STD',
+                    user_status: 'P'
+                }
+            });
+            const pendingPresencaCount = await Presenca.count({
+                where: { status: 'P' }
+            });
+
+            return res.render('dashboardprofessor', {
+                birthdayWidget: {
+                    currentMonth: new Date().getMonth(),
+                    currentMonthLabel: MONTH_NAMES_PT_BR[new Date().getMonth()],
+                    birthdays: []
+                },
+                pendingStudentCount,
+                pendingPresencaCount
+            });
         }
 
-        return res.render('dashboardaluno', { birthdayWidget: { currentMonth: new Date().getMonth(), currentMonthLabel: MONTH_NAMES_PT_BR[new Date().getMonth()], birthdays: [] } });
+        const userCode = await getEffectiveUserCode(req);
+        const metaProgress = userCode ? await getCurrentMetaProgressForStudent(userCode) : null;
+        return res.render('dashboardaluno', {
+            birthdayWidget: { currentMonth: new Date().getMonth(), currentMonthLabel: MONTH_NAMES_PT_BR[new Date().getMonth()], birthdays: [] },
+            metaProgress
+        });
     }
 });
 
@@ -1877,10 +1916,42 @@ app.post('/metasdeaula', async (req, res) => {
     }
 
     try {
+        const parseDateOnlyFlexible = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return null;
+
+            // aceita yyyy-mm-dd (input type="date") ou dd/mm/yyyy (máscara)
+            const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (isoMatch) {
+                const d = new Date(raw);
+                if (Number.isNaN(d.getTime())) return null;
+                return { iso: raw, date: d };
+            }
+
+            const brMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (brMatch) {
+                const dd = parseInt(brMatch[1], 10);
+                const mm = parseInt(brMatch[2], 10);
+                const yyyy = parseInt(brMatch[3], 10);
+                const d = new Date(yyyy, mm - 1, dd);
+                if (Number.isNaN(d.getTime())) return null;
+                // valida consistência (ex: 31/02 vira março)
+                if (d.getFullYear() !== yyyy || (d.getMonth() + 1) !== mm || d.getDate() !== dd) return null;
+                const iso = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+                return { iso, date: d };
+            }
+
+            return null;
+        };
+
         const title = String(req.body.title || '').trim();
         const description = String(req.body.description || '').trim();
-        const startDate = String(req.body.start_date || '').trim();
-        const endDate = String(req.body.end_date || '').trim();
+        const totalClasses = Number.parseInt(String(req.body.total_classes || '').trim(), 10);
+        const minClasses = Number.parseInt(String(req.body.min_classes || '').trim(), 10);
+        const startDateRaw = String(req.body.start_date || '').trim();
+        const endDateRaw = String(req.body.end_date || '').trim();
+        const examStartRaw = String(req.body.exam_start_date || '').trim();
+        const examEndRaw = String(req.body.exam_end_date || '').trim();
         const sendNotice = String(req.body.send_notice || 'no').trim().toLowerCase();
         const rawClassCodes = Array.isArray(req.body.class_codes)
             ? req.body.class_codes
@@ -1899,22 +1970,54 @@ app.post('/metasdeaula', async (req, res) => {
         if (!description) {
             throw new Error('Informe a descrição da meta de aula.');
         }
-        if (!startDate) {
+        if (!Number.isInteger(totalClasses) || totalClasses < 0) {
+            throw new Error('Quantidade total de aulas inválida.');
+        }
+        if (!Number.isInteger(minClasses) || minClasses < 0) {
+            throw new Error('Quantidade mínima de aulas inválida.');
+        }
+        if (minClasses > totalClasses) {
+            throw new Error('A quantidade mínima de aulas não pode ser maior que a quantidade total.');
+        }
+        if (!startDateRaw) {
             throw new Error('Informe a data de início da meta.');
         }
-        if (!endDate) {
+        if (!endDateRaw) {
             throw new Error('Informe a data de término da meta.');
         }
-        const startDateValue = new Date(startDate);
-        const endDateValue = new Date(endDate);
-        if (Number.isNaN(startDateValue.getTime())) {
+        if (!examStartRaw) {
+            throw new Error('Informe o início do período de exame.');
+        }
+        if (!examEndRaw) {
+            throw new Error('Informe o término do período de exame.');
+        }
+
+        const startParsed = parseDateOnlyFlexible(startDateRaw);
+        const endParsed = parseDateOnlyFlexible(endDateRaw);
+        const examStartParsed = parseDateOnlyFlexible(examStartRaw);
+        const examEndParsed = parseDateOnlyFlexible(examEndRaw);
+
+        if (!startParsed) {
             throw new Error('Data de início inválida.');
         }
-        if (Number.isNaN(endDateValue.getTime())) {
+        if (!endParsed) {
             throw new Error('Data de término inválida.');
         }
-        if (startDateValue > endDateValue) {
+        if (!examStartParsed) {
+            throw new Error('Início do período de exame inválido.');
+        }
+        if (!examEndParsed) {
+            throw new Error('Término do período de exame inválido.');
+        }
+
+        if (startParsed.date > endParsed.date) {
             throw new Error('A data de início deve ser anterior ou igual à data de término.');
+        }
+        if (examStartParsed.date > examEndParsed.date) {
+            throw new Error('O início do período de exame deve ser anterior ou igual ao término do período de exame.');
+        }
+        if (examStartParsed.date < startParsed.date || examEndParsed.date > endParsed.date) {
+            throw new Error('O período de exame deve estar dentro do período da meta (início e término).');
         }
         if (classCodes.length === 0) {
             throw new Error('Selecione pelo menos uma turma para aplicar a meta.');
@@ -1927,17 +2030,19 @@ app.post('/metasdeaula', async (req, res) => {
             throw new Error('Uma ou mais turmas selecionadas não estão disponíveis.');
         }
 
-        const metasAtivas = await MetaAula.findAll({ where: { status: 'A' }, attributes: ['title'] });
-        const hasSimilarTitle = metasAtivas.some((meta) => areClassNamesTooSimilar(meta.title, title));
-        if (hasSimilarTitle) {
-            throw new Error('Já existe uma meta com nome igual ou muito parecido. Use um nome diferente.');
-        }
+        // Observação: não bloqueamos títulos "parecidos".
+        // Exemplos válidos: "Graduação - 1º Semestre - 2026" e "Graduação - 2º Semestre - 2026".
 
         const meta = await MetaAula.create({
             title,
             description,
-            start_date: startDate,
-            end_date: endDate,
+            total_classes: totalClasses,
+            min_classes: minClasses,
+            start_date: startParsed.iso,
+            end_date: endParsed.iso,
+            exam_start_date: examStartParsed.iso,
+            exam_end_date: examEndParsed.iso,
+            keep_notices: sendNotice === 'yes',
             created_by: req.session.usuario.user_code,
             status: 'A'
         });
@@ -1951,7 +2056,7 @@ app.post('/metasdeaula', async (req, res) => {
         let tipo = 'success';
 
         if (sendNotice === 'yes') {
-            const expiresAt = new Date(`${endDate}T23:59:59`);
+            const expiresAt = new Date(`${endParsed.iso}T23:59:59`);
             const noticePayload = classCodes.map((classCode) => ({
                 title: 'Nova meta de aula',
                 content: `Uma nova meta de aula foi criada pelo professor ${req.session.usuario.first_name || ''} ${req.session.usuario.last_name || ''}. Fique ligado(a)!`,
@@ -2646,7 +2751,7 @@ app.get('/aluno', async (req, res) => {
             include: [{
                 model: Usuario,
                 as: 'responsavel',
-                attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'birth_date', 'photo', 'actual_belt', 'actual_degree', 'user_status', 'role'],
+                attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'birth_date', 'photo', 'actual_belt', 'actual_degree', 'user_status', 'role', 'wagi_size', 'zubon_size', 'obi_size'],
                 required: false
             }],
             order: [['first_name', 'ASC'], ['last_name', 'ASC']]
@@ -3272,11 +3377,12 @@ app.get('/aluno/status/negar/:id', async (req, res) => {
             throw new Error('Somente cadastros pendentes podem ser negados');
         }
 
-        usuario.user_status = 'C';
-        await usuario.save();
+        // Apaga foto temporária (se existir) e depois remove o registro do aluno,
+        // garantindo que nenhum dado de cadastro pendente permaneça no sistema.
         await deleteUserTempPhotoIfExists(usuario);
+        await usuario.destroy();
 
-        const mensagem = 'Cadastro negado com sucesso.';
+        const mensagem = 'Cadastro negado e dados removidos com sucesso.';
         return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
     } catch (err) {
         const mensagem = 'Erro: ' + err.message;
@@ -3325,7 +3431,134 @@ app.post('/aluno/status/:id', async (req, res) => {
     }
 });
 
+// Retorna estatísticas da meta atual do aluno (para modal /aluno)
+app.get('/aluno/:id/meta-atual', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.status(403).json({ ok: false, mensagem: 'Acesso não permitido.' });
+    }
+
+    try {
+        const alunoId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(alunoId) || alunoId <= 0) {
+            return res.status(400).json({ ok: false, mensagem: 'ID inválido.' });
+        }
+
+        const aluno = await Usuario.findByPk(alunoId, { attributes: ['id', 'user_code', 'role'] });
+        if (!aluno || aluno.role !== 'STD') {
+            return res.status(404).json({ ok: false, mensagem: 'Aluno não encontrado.' });
+        }
+
+        const progress = await getCurrentMetaProgressForStudent(aluno.user_code);
+        return res.json({ ok: true, progress });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: 'Erro ao calcular meta atual: ' + err.message });
+    }
+});
+
 // FUNÇÕES DE PRESENÇAS
+
+/** Calendário das aulas / contagem no fuso de Brasília (sem horário de verão). */
+const PRESENCA_BR_UTC_OFFSET_MIN = -180;
+
+function presencaDatePartsFromYmd(dateStr) {
+    const p = String(dateStr || '')
+        .trim()
+        .split('-')
+        .map((x) => parseInt(x, 10));
+    if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) {
+        return null;
+    }
+    return { y: p[0], mo: p[1], d: p[2] };
+}
+
+/** Intervalo UTC do dia civil YYYY-MM-DD (armazenamento e deduplicação). */
+function presencaUtcRangeForYmd(dateStr) {
+    const parts = presencaDatePartsFromYmd(dateStr);
+    if (!parts) {
+        return null;
+    }
+    const { y, mo, d } = parts;
+    return {
+        start: new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0)),
+        end: new Date(Date.UTC(y, mo - 1, d, 23, 59, 59, 999)),
+        noon: new Date(Date.UTC(y, mo - 1, d, 12, 0, 0, 0))
+    };
+}
+
+/** Dia civil Y-M-D a partir do instante gravado (UTC) — meio-dia UTC evita mudar o dia civil. */
+function presencaCivilYmdFromDbDate(requestDate) {
+    const dt = requestDate instanceof Date ? requestDate : new Date(requestDate);
+    if (Number.isNaN(dt.getTime())) {
+        return null;
+    }
+    const y = dt.getUTCFullYear();
+    const m = dt.getUTCMonth() + 1;
+    const d = dt.getUTCDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Dia da semana (0=dom..2=ter) para uma data civil YYYY-MM-DD (Gregoriano, independente de fuso). */
+function civilDateWeekdaySun0FromYmd(ymd) {
+    const parts = presencaDatePartsFromYmd(ymd);
+    if (!parts) {
+        return null;
+    }
+    const { y, mo, d } = parts;
+    return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0, 0)).getUTCDay();
+}
+
+/** Y-M-D civil no calendário de Brasília (terça-feira = grade da academia). */
+function presencaCivilYmdBrasil(requestDate) {
+    const m = moment(requestDate);
+    if (!m.isValid()) {
+        return null;
+    }
+    return m.utcOffset(PRESENCA_BR_UTC_OFFSET_MIN).format('YYYY-MM-DD');
+}
+
+function presencaMatchesSolicitacaoDay(requestDate, dateStr) {
+    const br = presencaCivilYmdBrasil(requestDate);
+    const utc = presencaCivilYmdFromDbDate(requestDate);
+    return dateStr === br || dateStr === utc;
+}
+
+function presencaDuplicateQueryRange(dateStr) {
+    const parts = presencaDatePartsFromYmd(dateStr);
+    if (!parts) {
+        return null;
+    }
+    const { y, mo, d } = parts;
+    const center = moment.utc([y, mo - 1, d, 12, 0, 0]);
+    return {
+        start: center.clone().subtract(1, 'day').startOf('day').toDate(),
+        end: center.clone().add(1, 'day').endOf('day').toDate()
+    };
+}
+
+/**
+ * Peso da presença aprovada por solicitação:
+ * - Terça-feira: Integral = 2; Gi ou No-Gi = 1 cada.
+ * - Demais dias: 1 por solicitação (Integral ou outro).
+ */
+function presencaPesoPorSolicitacao(requestDate, classType) {
+    const ct = String(classType || '').trim();
+    const ymd = presencaCivilYmdBrasil(requestDate);
+    if (!ymd) {
+        return 1;
+    }
+    const dow = civilDateWeekdaySun0FromYmd(ymd);
+    if (dow === null) {
+        return 1;
+    }
+    const isTuesday = dow === 2;
+    if (isTuesday) {
+        if (ct === 'Integral') {
+            return 2;
+        }
+        return 1;
+    }
+    return 1;
+}
 
 // Retorna o user_code efetivo (viewingAs ou logado)
 async function getEffectiveUserCode(req) {
@@ -3336,16 +3569,138 @@ async function getEffectiveUserCode(req) {
     return req.session.usuario ? req.session.usuario.user_code : null;
 }
 
+function normalizeDateOnlyToStart(dateOnlyIso) {
+    // dateOnlyIso: YYYY-MM-DD
+    return new Date(`${dateOnlyIso}T00:00:00`);
+}
+
+function normalizeDateOnlyToEnd(dateOnlyIso) {
+    // dateOnlyIso: YYYY-MM-DD
+    return new Date(`${dateOnlyIso}T23:59:59.999`);
+}
+
+async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new Date() } = {}) {
+    const normalizedUserCode = String(userCode || '').trim().toUpperCase();
+    if (!normalizedUserCode) {
+        return {
+            hasMeta: false,
+            metaId: null,
+            metaTitle: '',
+            totalClasses: 0,
+            minClasses: 0,
+            approvedCount: 0,
+            presencasNaMeta: 0,
+            percent: 0
+        };
+    }
+
+    const turmasAluno = await TurmaAluno.findAll({
+        where: { user_code: normalizedUserCode, active: 'Y' },
+        attributes: ['class_code']
+    });
+    const classCodes = [...new Set(turmasAluno.map((t) => t.class_code))].filter(Boolean);
+    if (classCodes.length === 0) {
+        return {
+            hasMeta: false,
+            metaId: null,
+            metaTitle: '',
+            totalClasses: 0,
+            minClasses: 0,
+            approvedCount: 0,
+            presencasNaMeta: 0,
+            percent: 0
+        };
+    }
+
+    const todayIso = moment(referenceDate).startOf('day').format('YYYY-MM-DD');
+
+    const metaAtual = await MetaAula.findOne({
+        where: {
+            status: 'A',
+            start_date: { [Op.lte]: todayIso },
+            end_date: { [Op.gte]: todayIso }
+        },
+        include: [
+            {
+                model: Turma,
+                as: 'turmas',
+                through: { attributes: [] },
+                where: { class_code: { [Op.in]: classCodes } },
+                required: true
+            }
+        ],
+        order: [['start_date', 'DESC'], ['id', 'DESC']]
+    });
+
+    if (!metaAtual) {
+        return {
+            hasMeta: false,
+            metaId: null,
+            metaTitle: '',
+            totalClasses: 0,
+            minClasses: 0,
+            approvedCount: 0,
+            presencasNaMeta: 0,
+            percent: 0
+        };
+    }
+
+    const metaPlain = metaAtual.get({ plain: true });
+    const metaClassCodes = [...new Set((metaPlain.turmas || []).map((t) => t.class_code))].filter(Boolean);
+
+    const startIso = metaPlain.start_date;
+    const effectiveEndIso = moment.min(
+        moment(todayIso, 'YYYY-MM-DD'),
+        moment(metaPlain.end_date, 'YYYY-MM-DD')
+    ).format('YYYY-MM-DD');
+
+    const startAt = normalizeDateOnlyToStart(startIso);
+    const endAt = normalizeDateOnlyToEnd(effectiveEndIso);
+
+    const approvedRows = await Presenca.findAll({
+        where: {
+            user_code: normalizedUserCode,
+            status: 'A',
+            class_code: metaClassCodes.length > 0 ? { [Op.in]: metaClassCodes } : undefined,
+            request_date: { [Op.between]: [startAt, endAt] }
+        },
+        attributes: ['request_date', 'class_type']
+    });
+
+    const approvedCount = approvedRows.reduce(
+        (sum, row) => sum + presencaPesoPorSolicitacao(row.request_date, row.class_type),
+        0
+    );
+
+    const totalClasses = Number(metaPlain.total_classes) || 0;
+    const minClasses = Number(metaPlain.min_classes) || 0;
+    const percentRaw = totalClasses > 0 ? (approvedCount / totalClasses) * 100 : 0;
+    const percent = Math.max(0, Math.min(100, Math.round(percentRaw)));
+    const presencasNaMeta = Number(approvedCount) || 0;
+
+    return {
+        hasMeta: true,
+        metaId: metaPlain.id,
+        metaTitle: metaPlain.title || '',
+        totalClasses,
+        minClasses,
+        approvedCount: presencasNaMeta,
+        presencasNaMeta,
+        percent
+    };
+}
+
 function buildPresencaViewModel(p) {
     const plain = p.get ? p.get({ plain: true }) : p;
     const statusMap = { P: 'Pendente', A: 'Aprovada', N: 'Negada', C: 'Solicitação cancelada' };
     const statusClassMap = { P: 'text-warning', A: 'text-success', N: 'text-danger', C: 'text-secondary' };
     const classTypeDisplayMap = { Integral: 'Integral', Gi: 'Gi (1ª Aula)', 'No-Gi': 'No-Gi (2ª Aula)' };
+    const ymd = presencaCivilYmdBrasil(plain.request_date) || moment(plain.request_date).format('YYYY-MM-DD');
     return {
         ...plain,
-        request_date_formatted: moment(plain.request_date).format('DD/MM/YYYY'),
+        request_date_formatted: moment(ymd, 'YYYY-MM-DD').format('DD/MM/YYYY'),
         request_date_ts: moment(plain.createdAt || plain.request_date).format('DD/MM/YYYY HH:mm:ss'),
-        request_date_iso: moment(plain.request_date).format('YYYY-MM-DD'),
+        request_date_iso: ymd,
         status_label: statusMap[plain.status] || plain.status,
         status_class: statusClassMap[plain.status] || '',
         class_type_display: classTypeDisplayMap[plain.class_type] || plain.class_type
@@ -3565,42 +3920,54 @@ app.post('/presenca/solicitar', async (req, res) => {
             return res.json({ ok: false, mensagem: 'Nenhuma data selecionada.' });
         }
 
-        const today = moment().startOf('day');
-        const limitDate = moment().subtract(15, 'days').startOf('day');
+        const todayBrYmd = moment().utcOffset(PRESENCA_BR_UTC_OFFSET_MIN).format('YYYY-MM-DD');
+        const limitBrYmd = moment()
+            .utcOffset(PRESENCA_BR_UTC_OFFSET_MIN)
+            .subtract(15, 'days')
+            .format('YYYY-MM-DD');
         const results = [];
         const errors = [];
 
         for (const dateStr of dates) {
-            const date = moment(dateStr, 'YYYY-MM-DD', true);
-
-            if (!date.isValid()) {
+            if (!moment(dateStr, 'YYYY-MM-DD', true).isValid()) {
                 errors.push({ date: dateStr, error: 'Data inválida.' });
                 continue;
             }
-            if (date.isAfter(today)) {
+            if (dateStr > todayBrYmd) {
                 errors.push({ date: dateStr, error: 'Não é permitido solicitar para datas futuras.' });
                 continue;
             }
-            if (date.isBefore(limitDate)) {
-                errors.push({ date: dateStr, error: `Anterior ao limite de 15 dias (${limitDate.format('DD/MM/YYYY')}).` });
+            if (dateStr < limitBrYmd) {
+                errors.push({
+                    date: dateStr,
+                    error: `Anterior ao limite de 15 dias (${moment(limitBrYmd, 'YYYY-MM-DD').format('DD/MM/YYYY')}).`
+                });
                 continue;
             }
 
-            const dayStart = date.clone().startOf('day').toDate();
-            const dayEnd = date.clone().endOf('day').toDate();
-            const existing = await Presenca.findOne({
-                where: {
-                    user_code: userCode,
-                    request_date: { [Op.between]: [dayStart, dayEnd] },
-                    status: { [Op.ne]: 'C' }
-                }
-            });
-            if (existing) {
+            const range = presencaUtcRangeForYmd(dateStr);
+            if (!range) {
+                errors.push({ date: dateStr, error: 'Data inválida.' });
+                continue;
+            }
+
+            const dupWindow = presencaDuplicateQueryRange(dateStr);
+            const candidatosDup =
+                dupWindow &&
+                (await Presenca.findAll({
+                    where: {
+                        user_code: userCode,
+                        request_date: { [Op.between]: [dupWindow.start, dupWindow.end] },
+                        status: { [Op.ne]: 'C' }
+                    },
+                    attributes: ['id', 'request_date']
+                }));
+            if (candidatosDup && candidatosDup.some((row) => presencaMatchesSolicitacaoDay(row.request_date, dateStr))) {
                 errors.push({ date: dateStr, error: 'Já existe uma solicitação para este dia.' });
                 continue;
             }
 
-            const dayOfWeek = date.day(); // 0=Dom ... 2=Ter
+            const dayOfWeek = civilDateWeekdaySun0FromYmd(dateStr); // 0=Dom ... 2=Ter
             let class_type = 'Integral';
             if (dayOfWeek === 2) {
                 const ct = classTypes && classTypes[dateStr] ? classTypes[dateStr] : 'Integral';
@@ -3612,7 +3979,7 @@ app.post('/presenca/solicitar', async (req, res) => {
             }
 
             const presenca = await Presenca.create({
-                request_date: date.toDate(),
+                request_date: range.noon,
                 user_code: userCode,
                 status: 'P',
                 class_type,

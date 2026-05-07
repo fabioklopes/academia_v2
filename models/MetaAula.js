@@ -9,6 +9,16 @@ const MetaAula = db.sequelize.define('tb_metas_aulas', {
         type: db.Sequelize.TEXT,
         allowNull: false
     },
+    total_classes: {
+        type: db.Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
+    min_classes: {
+        type: db.Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
     start_date: {
         type: db.Sequelize.DATEONLY,
         allowNull: false
@@ -16,6 +26,23 @@ const MetaAula = db.sequelize.define('tb_metas_aulas', {
     end_date: {
         type: db.Sequelize.DATEONLY,
         allowNull: false
+    },
+    exam_start_date: {
+        type: db.Sequelize.DATEONLY,
+        // Mantém compatibilidade com metas antigas já persistidas.
+        // A obrigatoriedade é validada no POST do endpoint.
+        allowNull: true
+    },
+    exam_end_date: {
+        type: db.Sequelize.DATEONLY,
+        // Mantém compatibilidade com metas antigas já persistidas.
+        // A obrigatoriedade é validada no POST do endpoint.
+        allowNull: true
+    },
+    keep_notices: {
+        type: db.Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
     },
     created_by: {
         type: db.Sequelize.STRING(5),

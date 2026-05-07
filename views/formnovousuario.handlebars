@@ -154,7 +154,7 @@
             <select class="form-select" id="class_code" name="class_code" {{#if camposErro.class_code}}{{/if}} required>
                 <option value="">-- Selecione --</option>
                 {{#each turmaOptions}}
-                <option value="{{class_code}}" {{#if selected}}selected{{/if}}>{{class_name}} ({{class_code}})</option>
+                <option value="{{class_code}}" {{#if selected}}selected{{/if}}>{{class_name}}</option>
                 {{/each}}
             </select>
             <label for="class_code">Turma para solicitação de acesso</label>

@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <div class="modal fade" id="modalNovaMetaAula" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <div class="modal-content">
             <form method="POST" action="/metasdeaula" id="formNovaMetaAula">
                 <div class="modal-header">
@@ -141,6 +141,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="mb-3">
                         <label for="metaDescription" class="form-label">Descrição da meta</label>
                         <textarea id="metaDescription" name="description" class="form-control" rows="4" required></textarea>
+                    </div>
+
+                    <div class="row gy-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="metaTotalClasses" class="form-label">Quantidade total de aulas</label>
+                            <input type="number" id="metaTotalClasses" name="total_classes" class="form-control" min="0" step="1" inputmode="numeric" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="metaMinClasses" class="form-label">Quantidade mínima de aulas</label>
+                            <input type="number" id="metaMinClasses" name="min_classes" class="form-control" min="0" step="1" inputmode="numeric" required>
+                            <div class="form-text">
+                                Proporção: <strong id="metaMinClassesPercent">0%</strong>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -164,11 +178,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="row gy-3">
                         <div class="col-md-6">
                             <label for="metaStartDate" class="form-label">Data de início</label>
-                            <input type="date" id="metaStartDate" name="start_date" class="form-control" required>
+                            <input type="text" id="metaStartDate" name="start_date" class="form-control meta-date-input" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" required>
                         </div>
                         <div class="col-md-6">
                             <label for="metaEndDate" class="form-label">Data de término</label>
-                            <input type="date" id="metaEndDate" name="end_date" class="form-control" required>
+                            <input type="text" id="metaEndDate" name="end_date" class="form-control meta-date-input" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" required>
+                        </div>
+                    </div>
+
+                    <div class="row gy-3 mt-0">
+                        <div class="col-md-6">
+                            <label for="metaExamStartDate" class="form-label">Início do período de exame</label>
+                            <input type="text" id="metaExamStartDate" name="exam_start_date" class="form-control meta-date-input" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="metaExamEndDate" class="form-label">Término do período de exame</label>
+                            <input type="text" id="metaExamEndDate" name="exam_end_date" class="form-control meta-date-input" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" required>
                         </div>
                     </div>
 
@@ -182,8 +207,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Criar meta de aula</button>
+                    <button type="button" class="btn btn-outline-secondary mb-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary mb-3">Criar meta de aula</button>
                 </div>
             </form>
         </div>
@@ -191,6 +216,11 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <style>
+    #modalNovaMetaAula .modal-body {
+        max-height: calc(100vh - 220px);
+        overflow-y: auto;
+    }
+
     .meta-turma-picker {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -245,6 +275,57 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         const checkboxes = document.querySelectorAll('.meta-turma-checkbox');
         checkboxes.forEach((checkbox) => checkbox.checked = true);
+    });
+
+    const clampNonNegativeInt = (value) => {
+        const parsed = parseInt(String(value || '').replace(/[^\d-]/g, ''), 10);
+        if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return 0;
+        return Math.max(0, parsed);
+    };
+
+    const updatePercentLabel = () => {
+        const total = clampNonNegativeInt(document.getElementById('metaTotalClasses')?.value);
+        const min = clampNonNegativeInt(document.getElementById('metaMinClasses')?.value);
+        const percentEl = document.getElementById('metaMinClassesPercent');
+        if (!percentEl) return;
+
+        if (total <= 0) {
+            percentEl.textContent = '0%';
+            return;
+        }
+        const pct = Math.round((Math.min(min, total) / total) * 100);
+        percentEl.textContent = `${pct}%`;
+    };
+
+    document.getElementById('metaTotalClasses')?.addEventListener('input', updatePercentLabel);
+    document.getElementById('metaMinClasses')?.addEventListener('input', updatePercentLabel);
+
+    const applyDateMask = (inputEl) => {
+        if (!inputEl) return;
+        inputEl.addEventListener('input', function () {
+            const digits = this.value.replace(/\D/g, '').slice(0, 8);
+            const dd = digits.slice(0, 2);
+            const mm = digits.slice(2, 4);
+            const yyyy = digits.slice(4, 8);
+            let out = dd;
+            if (mm) out += '/' + mm;
+            if (yyyy) out += '/' + yyyy;
+            this.value = out;
+        });
+    };
+
+    document.querySelectorAll('.meta-date-input').forEach(applyDateMask);
+
+    // Se vier de /aluno com query openNovaMeta=1, abre o modal automaticamente.
+    document.addEventListener('DOMContentLoaded', function () {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('openNovaMeta') === '1') {
+            const el = document.getElementById('modalNovaMetaAula');
+            if (el) {
+                const modal = new bootstrap.Modal(el);
+                modal.show();
+            }
+        }
     });
 
     document.getElementById('formNovaMetaAula')?.addEventListener('submit', function (e) {

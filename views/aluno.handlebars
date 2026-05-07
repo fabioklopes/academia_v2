@@ -16,7 +16,14 @@
     </div>
 {{/if}}
 
-<h1 class="mb-4">Página Aluno</h1>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <h1 class="mb-0">Página Aluno</h1>
+    {{#if hasProfessorPrivileges}}
+        <a href="/metasdeaula?openNovaMeta=1" class="btn btn-primary">
+            <i class="fa-solid fa-plus"></i> Nova Meta
+        </a>
+    {{/if}}
+</div>
 <style>
     .aluno-avatar {
         width: 40px;
@@ -233,6 +240,10 @@
                             <span id="modalAlunoRole">-</span>
                         </div>
                         <div class="col-12">
+                            <span class="aluno-detail-label">Quantidade de Presenças:</span>
+                            <span id="modalAlunoPresencas">-</span>
+                        </div>
+                        <div class="col-12">
                             <span class="aluno-detail-label">WhatsApp:</span>
                             <span id="modalAlunoPhone">-</span>
                         </div>
@@ -363,12 +374,14 @@
             }
         };
 
-        modal.addEventListener('show.bs.modal', function(event) {
+        modal.addEventListener('show.bs.modal', async function(event) {
             const trigger = event.relatedTarget;
             lastTrigger = trigger || null;
             if (!trigger) {
                 return;
             }
+
+            const alunoId = trigger.getAttribute('data-id');
 
             const firstName = trigger.getAttribute('data-first-name') || '';
             const lastName = trigger.getAttribute('data-last-name') || '';
@@ -383,12 +396,27 @@
             setText('modalAlunoNome', fullName || '-');
             setText('modalAlunoEmail', trigger.getAttribute('data-email'));
             setText('modalAlunoRole', trigger.getAttribute('data-role'));
+            setText('modalAlunoPresencas', '-');
             setText('modalAlunoPhone', trigger.getAttribute('data-phone'));
             setText('modalAlunoBirth', trigger.getAttribute('data-birth-date'));
             setText('modalAlunoBeltSummary', trigger.getAttribute('data-belt-summary'));
             setText('modalAlunoWagi', trigger.getAttribute('data-wagi'));
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
+
+            // Buscar total de presenças aprovadas na meta atual (se houver)
+            if (alunoId) {
+                try {
+                    const res = await fetch(`/aluno/${alunoId}/meta-atual`, { method: 'GET' });
+                    if (res.ok) {
+                        const payload = await res.json();
+                        const approved = payload && payload.progress ? payload.progress.approvedCount : null;
+                        setText('modalAlunoPresencas', Number.isFinite(approved) ? String(approved) : '-');
+                    }
+                } catch (_e) {
+                    // silencioso: mantém "-"
+                }
+            }
 
             // Configurar responsável como link
             const responsibleLink = document.getElementById('modalAlunoResponsibleLink');
@@ -412,7 +440,6 @@
             const statusLabel = document.getElementById('alunoStatusLabel');
             const statusCode = trigger.getAttribute('data-status-code') || '';
             const switchContainer = document.getElementById('alunoStatusSwitchContainer');
-            const alunoId = trigger.getAttribute('data-id');
             
             if (statusSwitch && switchContainer) {
                 statusSwitch.checked = statusCode === 'A';

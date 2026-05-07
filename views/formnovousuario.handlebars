@@ -102,14 +102,14 @@
 
         <div class="form-floating mb-3">
             <input type="text" class="form-control" id="first_name" name="first_name" value="{{usuario.first_name}}" placeholder=""
-                {{#if isEditMode}}readonly{{/if}}>
+                {{#if isEditMode}}readonly{{else}}required{{/if}}>
             <label for="first_name">Primeiro nome</label>
             {{#if camposErro.first_name}}<div class="invalid-feedback" style="display:block;">{{camposErro.first_name}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
             <input type="text" class="form-control" id="last_name" name="last_name" value="{{usuario.last_name}}" placeholder="" {{#if
-                isEditMode}}readonly{{/if}}>
+                isEditMode}}readonly{{else}}required{{/if}}>
             <label for="last_name">Restante do nome</label>
             {{#if camposErro.last_name}}<div class="invalid-feedback" style="display:block;">{{camposErro.last_name}}</div>{{/if}}
         </div>
@@ -272,6 +272,46 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        function normalizeName(raw) {
+            const text = String(raw || '').trim().replace(/\s+/g, ' ');
+            if (!text) return '';
+            return text
+                .split(' ')
+                .map((word) => {
+                    const w = word.trim();
+                    if (!w) return '';
+                    const lower = w.toLocaleLowerCase('pt-BR');
+                    return lower.charAt(0).toLocaleUpperCase('pt-BR') + lower.slice(1);
+                })
+                .join(' ');
+        }
+
+        function normalizeEmail(raw) {
+            return String(raw || '').trim().toLowerCase();
+        }
+
+        const firstNameInput = document.getElementById('first_name');
+        const lastNameInput = document.getElementById('last_name');
+        const emailInput = document.getElementById('email');
+
+        if (firstNameInput && !firstNameInput.readOnly) {
+            firstNameInput.addEventListener('blur', () => {
+                firstNameInput.value = normalizeName(firstNameInput.value);
+            });
+        }
+
+        if (lastNameInput && !lastNameInput.readOnly) {
+            lastNameInput.addEventListener('blur', () => {
+                lastNameInput.value = normalizeName(lastNameInput.value);
+            });
+        }
+
+        if (emailInput && !emailInput.readOnly) {
+            emailInput.addEventListener('blur', () => {
+                emailInput.value = normalizeEmail(emailInput.value);
+            });
+        }
+
         const beltSelect = document.getElementById('actual_belt');
         const degreeSelect = document.getElementById('actual_degree');
         const photoInput = document.getElementById('photo-input');

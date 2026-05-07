@@ -631,11 +631,16 @@
      JAVASCRIPT
 ════════════════════════════════════════════════════ -->
 <script>
-(function () {
+(() => {
     'use strict';
 
-    /* ── Dados do servidor ── */
-    const rawData = JSON.parse(document.getElementById('presencasData').textContent || '[]');
+    function initPresencaAlunoPage() {
+        if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+            return;
+        }
+
+        /* ── Dados do servidor ── */
+        const rawData = JSON.parse(document.getElementById('presencasData').textContent || '[]');
 
     // Estrutura de acesso rápido: date_iso → presença
     let presencasByDate = {};
@@ -1104,6 +1109,13 @@
         }
     });
 
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPresencaAlunoPage);
+    } else {
+        initPresencaAlunoPage();
+    }
 })();
 </script>
 {{/if}}

@@ -5,7 +5,8 @@ const express = require('express');
 const app = express();
 
 const { engine } = require('express-handlebars');
-const bodyParser = require('body-parser');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const multer = require('multer');
 const fs = require('fs');
@@ -91,18 +92,40 @@ function getRandomMotivationalMessage() {
     return motivationalPhrases[randomIndex];
 }
 
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+const isProduction = process.env.NODE_ENV === 'production';
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (isProduction && (!sessionSecret || sessionSecret.trim().length < 32)) {
+    throw new Error('SESSION_SECRET ausente/curto demais. Defina um valor forte no ambiente de produção.');
+}
+
+if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
+    app.set('trust proxy', 1);
+}
+
+app.use(helmet({
+    contentSecurityPolicy: false
+}));
+app.use(rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false
+}));
+
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static('public'));
 app.use(session({
     name: 'oss.sid',
-    secret: process.env.SESSION_SECRET || 'oss_session_secret_dev',
+    secret: sessionSecret || 'oss_session_secret_dev',
     resave: false,
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
         sameSite: 'lax',
+        secure: isProduction,
         maxAge: 1000 * 60 * 60 * 8
     }
 }));
@@ -180,15 +203,18 @@ app.use(async (req, res, next) => {
 
 // Rotas isentas de verificação de login
 function isPublicRoute(pathname) {
-    return pathname === '/auth/login'
-        || pathname === '/auth/verify'
-        || pathname === '/auth/forgot-password'
-        || pathname === '/auth/reset-password'
-        || pathname === '/reset-password'
-        || pathname === '/aluno/novo'
-        || pathname === '/aluno/cadastrar'
-        || pathname === '/aluno/verificar-titular'
-        || pathname.startsWith('/uploads/');
+    const publicRoutes = new Set([
+        '/auth/login',
+        '/auth/verify',
+        '/auth/forgot-password',
+        '/auth/reset-password',
+        '/reset-password',
+        '/aluno/novo',
+        '/aluno/cadastrar',
+        '/aluno/verificar-titular'
+    ]);
+
+    return publicRoutes.has(pathname) || pathname.startsWith('/uploads/');
 }
 
 // Redirecionamento para o login caso não esteja autenticado
@@ -592,8 +618,17 @@ async function getStudentMassMessageState(usuarioSessao) {
 
     const readByMessageId = new Map(
         leituras
-            .map((item) => [Number(item.message_id), item.viewed_at])
-            .filter(([id]) => Number.isInteger(id) && id > 0)
+            .map((item) => {
+                const id = Number(item.message_id);
+                if (!Number.isInteger(id) || id <= 0) {
+                    return null;
+                }
+
+                // Alguns registros antigos podem ter `viewed_at` nulo.
+                // A existência do registro indica que a mensagem foi marcada como lida.
+                return [id, item.viewed_at || true];
+            })
+            .filter(Boolean)
     );
 
     const where = {
@@ -612,13 +647,16 @@ async function getStudentMassMessageState(usuarioSessao) {
 
     const messages = mensagens.map((mensagem) => {
         const vm = toMassMessageViewModel(mensagem, audience.turmaByCode);
-        const readAt = readByMessageId.get(Number(vm.id)) || null;
+        const messageId = Number(vm.id);
+        const readMarker = readByMessageId.get(messageId) || null;
+        const isRead = readByMessageId.has(messageId);
+        const readAt = readMarker && readMarker !== true ? readMarker : null;
         const isExpired = vm.statusLabel === 'Expirado';
 
         return {
             ...vm,
             isExpired,
-            isRead: !!readAt,
+            isRead,
             readAtLabel: readAt ? formatDateTimePtBrWithAs(readAt) : '',
             readStateLabel: readAt ? 'Lida' : 'Nova',
             readStateBadge: readAt ? 'secondary' : 'danger'
@@ -679,6 +717,27 @@ async function markMassMessageAsRead(usuarioSessao, messageId) {
 
 function normalizeEmail(value) {
     return String(value || '').trim().toLowerCase();
+}
+
+function normalizePersonName(value) {
+    const text = String(value || '').trim().replace(/\s+/g, ' ');
+    if (!text) {
+        return '';
+    }
+
+    return text
+        .split(' ')
+        .map((word) => {
+            const w = word.trim();
+            if (!w) {
+                return '';
+            }
+
+            const lower = w.toLocaleLowerCase('pt-BR');
+            return lower.charAt(0).toLocaleUpperCase('pt-BR') + lower.slice(1);
+        })
+        .filter(Boolean)
+        .join(' ');
 }
 
 function getResetPasswordBaseUrl(req) {
@@ -2562,29 +2621,25 @@ app.get('/aluno', async (req, res) => {
         const whereClauses = [];
 
         if (!hasProfessorPrivileges) {
-            whereClauses.push({user_status: 'A'});
+            whereClauses.push({ user_status: 'A' });
         }
 
         if (searchTerm) {
             const normalizedPhone = searchTerm.replace(/\D/g, '');
             const searchFilters = [
-                {first_name: {[Op.like]: `%${searchTerm}%`}},
-                {last_name: {[Op.like]: `%${searchTerm}%`}},
-                {email: {[Op.like]: `%${searchTerm}%`}}
+                { first_name: { [Op.like]: `%${searchTerm}%` } },
+                { last_name: { [Op.like]: `%${searchTerm}%` } },
+                { email: { [Op.like]: `%${searchTerm}%` } }
             ];
 
             if (normalizedPhone) {
-                searchFilters.push({phone: {[Op.like]: `%${normalizedPhone}%`}});
+                searchFilters.push({ phone: { [Op.like]: `%${normalizedPhone}%` } });
             }
 
-            whereClauses.push({[Op.or]: searchFilters});
+            whereClauses.push({ [Op.or]: searchFilters });
         }
 
-        const where = whereClauses.length === 0
-            ? undefined
-            : whereClauses.length === 1
-                ? whereClauses[0]
-                : {[Op.and]: whereClauses};
+        const where = whereClauses.length > 0 ? { [Op.and]: whereClauses } : {};
 
         const usuarios = await Usuario.findAll({
             where,
@@ -2849,6 +2904,36 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     };
 
     try {
+        const requiredFields = [
+            'first_name',
+            'last_name',
+            'phone',
+            'birth_date',
+            'actual_belt',
+            'actual_degree',
+            'wagi_size',
+            'zubon_size',
+            'obi_size',
+            'class_code'
+        ];
+        const missing = requiredFields.filter((field) => !String(req.body[field] || '').trim());
+        if (missing.length > 0) {
+            const fieldErrors = {};
+            missing.forEach((field) => {
+                fieldErrors[field] = 'Campo obrigatório.';
+            });
+            if (!req.body.email && !req.body.responsible_id) {
+                fieldErrors.email = 'Campo obrigatório.';
+            }
+            if (!req.body.password1 || !req.body.password2) {
+                fieldErrors.password = 'Campo obrigatório.';
+            }
+            if (!req.file) {
+                fieldErrors.photo = 'Envie uma foto para continuar.';
+            }
+            return renderFormWithError('Preencha todos os campos obrigatórios para continuar.', fieldErrors);
+        }
+
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const isDependent = !!responsibleId;
         const classCode = String(req.body.class_code || '').trim().toUpperCase();
@@ -2926,10 +3011,20 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             emailFinal = (titular.email || '').trim().toLowerCase();
         }
 
+        const firstNameFinal = normalizePersonName(req.body.first_name);
+        const lastNameFinal = normalizePersonName(req.body.last_name);
+
+        if (!firstNameFinal || !lastNameFinal) {
+            const fieldErrors = {};
+            if (!firstNameFinal) fieldErrors.first_name = 'Campo obrigatório.';
+            if (!lastNameFinal) fieldErrors.last_name = 'Campo obrigatório.';
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', fieldErrors);
+        }
+
         const usuario = await Usuario.create({
             user_code: generatedCode(),
-            first_name: req.body.first_name,
-            last_name: req.body.last_name,
+            first_name: firstNameFinal,
+            last_name: lastNameFinal,
             email: emailFinal,
             password: passwordHash,
             role: 'STD',
@@ -4179,6 +4274,109 @@ app.set('view engine', 'handlebars');
 
 app.set('views', path.join(__dirname, 'views'));
 
+function getErrorViewModel(statusCode) {
+    const normalizedStatusCode = Number(statusCode) || 500;
+    const map = {
+        403: {
+            title: 'Acesso negado',
+            message: 'Você não tem permissão para acessar este recurso.',
+            iconClass: 'fa-ban'
+        },
+        404: {
+            title: 'Página não encontrada',
+            message: 'A página solicitada não existe ou foi movida.',
+            iconClass: 'fa-triangle-exclamation'
+        },
+        429: {
+            title: 'Muitas solicitações',
+            message: 'Você fez muitas requisições em pouco tempo. Tente novamente em instantes.',
+            iconClass: 'fa-gauge-high'
+        },
+        500: {
+            title: 'Erro interno',
+            message: 'Ocorreu um erro inesperado no servidor.',
+            iconClass: 'fa-bug'
+        },
+        501: {
+            title: 'Não implementado',
+            message: 'Essa funcionalidade ainda não está disponível.',
+            iconClass: 'fa-screwdriver-wrench'
+        },
+        502: {
+            title: 'Falha no gateway',
+            message: 'O servidor recebeu uma resposta inválida de um serviço externo.',
+            iconClass: 'fa-plug-circle-xmark'
+        },
+        503: {
+            title: 'Serviço indisponível',
+            message: 'O serviço está temporariamente indisponível. Tente novamente em instantes.',
+            iconClass: 'fa-power-off'
+        },
+        504: {
+            title: 'Tempo esgotado',
+            message: 'O servidor não respondeu a tempo. Tente novamente.',
+            iconClass: 'fa-hourglass-end'
+        }
+    };
+
+    if (normalizedStatusCode === 443) {
+        return { statusCode: 443, title: 'Acesso negado', message: 'Acesso bloqueado.', iconClass: 'fa-ban' };
+    }
+
+    const fallback = map[500];
+    const viewModel = map[normalizedStatusCode] || {
+        statusCode: normalizedStatusCode,
+        title: fallback.title,
+        message: fallback.message,
+        iconClass: fallback.iconClass
+    };
+
+    return { statusCode: normalizedStatusCode, ...viewModel };
+}
+
+function renderErrorPage(res, statusCode) {
+    const vm = getErrorViewModel(statusCode);
+    return res.status(vm.statusCode).render('errors/error', vm);
+}
+
+// 404: rota não encontrada (deve ficar depois das rotas)
+app.use((req, res) => {
+    if (res.headersSent) {
+        return;
+    }
+
+    if (req.accepts(['html', 'json']) === 'json') {
+        return res.status(404).json({ ok: false, error: 'Not Found' });
+    }
+
+    return renderErrorPage(res, 404);
+});
+
+// Handler central de erros
+app.use((err, req, res, _next) => {
+    const statusCode = Number(err && (err.statusCode || err.status)) || 500;
+    const message = isProduction ? undefined : (err && err.message ? err.message : undefined);
+
+    if (res.headersSent) {
+        return;
+    }
+
+    if (req.accepts(['html', 'json']) === 'json') {
+        return res.status(statusCode).json({
+            ok: false,
+            error: statusCode >= 500 ? 'Internal Server Error' : 'Request Error',
+            message
+        });
+    }
+
+    const vm = getErrorViewModel(statusCode);
+    if (!isProduction && message) {
+        vm.message = message;
+    }
+
+    return res.status(vm.statusCode).render('errors/error', vm);
+});
+
 
 // execução do servidor
 const PORT = process.env.ENV_PORT || 3000;
@@ -4198,5 +4396,3 @@ ensureUsuarioEmailNotUnique()
         console.error('Falha ao inicializar ajuste de indice de e-mail:', err.message);
         process.exit(1);
     });
-
-

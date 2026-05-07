@@ -12,7 +12,7 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.STRING,
         allowNull: false,
         validate: {
-            isEmail: true
+            isEmail: true, 
         }
     },
     password: {
@@ -102,7 +102,7 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.STRING,
         allowNull: true,
         validate: {
-            is: /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i,
+            is: /\.(jpg|jpeg|png|gif|bmp|webp)$/i,
             len: [1, 255],
         },
         defaultValue: '/uploads/users/default.jpg',

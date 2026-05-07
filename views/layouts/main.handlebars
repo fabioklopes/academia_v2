@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 
     <head>
         <meta charset="UTF-8">
@@ -10,8 +10,34 @@
 
         <link href="/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+        <link rel="stylesheet" href="https://unpkg.com/js-datepicker/dist/datepicker.min.css">
         <link rel="icon" href="/img/logotipo.ico">
         <style>
+            :root {
+                --app-header-height: 0px;
+                --app-footer-height: 0px;
+            }
+
+            /* Modais com static backdrop não devem “tomar” header/footer */
+            .modal {
+                padding-top: calc(var(--app-header-height) + 0.75rem);
+                padding-bottom: calc(var(--app-footer-height) + 0.75rem);
+            }
+
+            .modal-dialog {
+                margin-top: 0;
+                margin-bottom: 0;
+            }
+
+            .modal-content {
+                max-height: calc(100vh - var(--app-header-height) - var(--app-footer-height) - 1.5rem);
+                overflow: hidden;
+            }
+
+            .modal-body {
+                overflow: auto;
+            }
+
             .student-message-bell-link {
                 position: relative;
                 display: inline-flex;
@@ -115,7 +141,7 @@
 
     <body>
         <div class="container p-1">
-            <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom border-3 border-primary">
+            <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom border-3 border-primary" id="appHeaderNav">
                 <div class="container-fluid">
 
                     <a class="navbar-brand" href="/"><b>CRTN Belém</b></a>
@@ -223,9 +249,29 @@
         </div>
         {{/if}}
 
+        <script src="https://unpkg.com/js-datepicker/dist/datepicker.min.js"></script>
         <script src="/js/popper.min.js" defer></script>
         <script src="/js/bootstrap.min.js" defer></script>
         <script src="/js/auto-dismiss.js" defer></script>
+        <script>
+            (function syncLayoutChromeHeights() {
+                function compute() {
+                    const header = document.getElementById('appHeaderNav');
+                    const footer = document.getElementById('appFooter');
+                    const headerHeight = header ? header.getBoundingClientRect().height : 0;
+                    const footerHeight = footer ? footer.getBoundingClientRect().height : 0;
+                    document.documentElement.style.setProperty('--app-header-height', `${Math.max(0, Math.round(headerHeight))}px`);
+                    document.documentElement.style.setProperty('--app-footer-height', `${Math.max(0, Math.round(footerHeight))}px`);
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', compute);
+                } else {
+                    compute();
+                }
+                window.addEventListener('resize', compute);
+            })();
+        </script>
         <script>
             function updateStudentMassMessageBell(unreadCount) {
                 const bellLink = document.getElementById('studentMassMessageBellLink');

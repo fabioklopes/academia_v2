@@ -1587,8 +1587,17 @@ function calculateAgeFromBirthDateParts(parts, todayDate = new Date()) {
 function buildBirthdayWidgetData(users = [], todayDate = new Date()) {
     const todayDay = todayDate.getDate();
     const todayMonthIndex = todayDate.getMonth();
+    const hiddenUserCodes = new Set(['JY5TM', 'PETC5', 'Z5LAX', 'ADMIN']);
 
     const birthdays = users
+        .filter((user) => {
+            if (!user || typeof user.get !== 'function') {
+                return false;
+            }
+            const plain = user.get({ plain: true });
+            const code = String(plain.user_code || '').trim().toUpperCase();
+            return code ? !hiddenUserCodes.has(code) : true;
+        })
         .map((user) => {
             const plain = user.get({ plain: true });
             const birthParts = parseBirthDateParts(plain.birth_date);

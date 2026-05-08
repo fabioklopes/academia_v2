@@ -1,7 +1,4 @@
-<h1 class="mb-2">Dashboard</h1>
-{{#if motivationalMessage}}
-    <p class="small text-secondary mt-1 fst-italic text-center border rounded-2 px-3 py-2 mb-2">"{{motivationalMessage}}"</p>
-{{/if}}
+<h1 class="mt-0 mb-2">Dashboard</h1>
 
 <style>
     .dashboard-card-link {
@@ -125,3 +122,7 @@
 </div>
 
 {{> birthdayswidget birthdayWidget}}
+
+{{#if motivationalMessage}}
+    <p class="small text-secondary fst-italic text-center border rounded-2 px-3 py-2 mt-3 mb-0">"{{motivationalMessage}}"</p>
+{{/if}}

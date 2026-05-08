@@ -1,8 +1,4 @@
-{{#if motivationalMessage}}
-    <p class="small text-secondary fst-italic text-center border rounded-2 px-3 py-2 mb-2">"{{motivationalMessage}}"</p>
-{{/if}}
-
-<h1 class="mb-2">Dashboard</h1>
+<h1 class="mt-0 mb-2">Dashboard</h1>
 
 {{#if metaProgress.hasMeta}}
     <div class="card border-0 shadow-sm mb-3">
@@ -138,3 +134,7 @@
 </div>
 
 {{> birthdayswidget birthdayWidget}}
+
+{{#if motivationalMessage}}
+    <p class="small text-secondary fst-italic text-center border rounded-2 px-3 py-2 mt-3 mb-0">"{{motivationalMessage}}"</p>
+{{/if}}

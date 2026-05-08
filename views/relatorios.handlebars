@@ -1,0 +1,110 @@
+<div class="container py-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-4">
+        <div>
+            <h1 class="mb-1">Relatórios</h1>
+            <div class="text-body-secondary">Selecione o tipo de relatório.</div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-0 relatorio-card" role="button" tabindex="0" data-href="/relatorios/nomes">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="relatorio-icon text-primary">
+                            <i class="fa-solid fa-list-ol"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Relatório por Nomes</h5>
+                            <div class="text-body-secondary small">Lista alfabética com ativos primeiro.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0 pb-3">
+                    <span class="btn btn-outline-primary btn-sm">Abrir</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-0 relatorio-card" role="button" tabindex="0" data-href="/relatorios/faixas">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="relatorio-icon text-primary">
+                            <i class="fa-solid fa-layer-group"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Relatório por Faixas</h5>
+                            <div class="text-body-secondary small">Agrupado por faixa, em ordem decrescente.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0 pb-3">
+                    <span class="btn btn-outline-primary btn-sm">Abrir</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card h-100 shadow-sm border-0 relatorio-card" role="button" tabindex="0" data-href="/relatorios/presencas">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="relatorio-icon text-primary">
+                            <i class="fa-solid fa-calendar-check"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Relatório por Presenças</h5>
+                            <div class="text-body-secondary small">Por período (meta ou datas específicas).</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0 pb-3">
+                    <span class="btn btn-outline-primary btn-sm">Abrir</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .relatorio-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, 0.08);
+        font-size: 20px;
+    }
+
+    .relatorio-card {
+        transition: transform 120ms ease, box-shadow 120ms ease;
+        cursor: pointer;
+    }
+
+    .relatorio-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important;
+    }
+</style>
+
+<script>
+    (() => {
+        function go(el) {
+            const href = el.getAttribute('data-href');
+            if (href) window.location.href = href;
+        }
+
+        document.querySelectorAll('.relatorio-card').forEach((card) => {
+            card.addEventListener('click', () => go(card));
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    go(card);
+                }
+            });
+        });
+    })();
+</script>
+

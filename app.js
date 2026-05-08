@@ -13,6 +13,8 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const argon2 = require('argon2');
+const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
 const { Op } = require('sequelize');
 const moment = require('moment');
 const Usuario = require('./models/Usuario');
@@ -236,6 +238,303 @@ app.use(requireAuth);
 // Equiparação de acesso para professor e administrador
 function hasProfessorAccess(usuarioSessao) {
     return !!usuarioSessao && ['PRO', 'ADM'].includes(usuarioSessao.role);
+}
+
+function formatDateBrFromYmd(ymd) {
+    const normalized = String(ymd || '').trim();
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+        return '-';
+    }
+    return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function getTodayYmd() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function toDateStartOfDay(ymd) {
+    const match = String(ymd || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
+}
+
+function toDateEndOfDay(ymd) {
+    const match = String(ymd || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 23, 59, 59, 999);
+}
+
+function normalizeNameSortKey(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function buildYmdFromParts(parts) {
+    if (!parts || !Number.isInteger(parts.year) || !Number.isInteger(parts.month) || !Number.isInteger(parts.day)) {
+        return '';
+    }
+    const mm = String(parts.month).padStart(2, '0');
+    const dd = String(parts.day).padStart(2, '0');
+    return `${parts.year}-${mm}-${dd}`;
+}
+
+function getBaseBeltColor(actualBelt) {
+    const belt = String(actualBelt || '').trim();
+    if (!belt) return 'white';
+    if (belt.startsWith('gray')) return 'gray';
+    if (belt.startsWith('yellow')) return 'yellow';
+    if (belt.startsWith('orange')) return 'orange';
+    if (belt.startsWith('green')) return 'green';
+    if (belt === 'blue') return 'blue';
+    if (belt === 'purple') return 'purple';
+    if (belt === 'brown') return 'brown';
+    if (belt === 'black') return 'black';
+    if (belt === 'red') return 'red';
+    if (belt === 'white') return 'white';
+    return 'white';
+}
+
+function getBeltGroupOrderDesc(actualBelt) {
+    const base = getBaseBeltColor(actualBelt);
+    const orderMap = {
+        red: 10,
+        black: 9,
+        brown: 8,
+        purple: 7,
+        blue: 6,
+        green: 5,
+        orange: 4,
+        yellow: 3,
+        gray: 2,
+        white: 1
+    };
+    return orderMap[base] || 1;
+}
+
+function getBeltBadgeClass(actualBelt) {
+    const base = getBaseBeltColor(actualBelt);
+    return `belt-badge-${base}`;
+}
+
+function resolveLocalUploadFile(photoPath) {
+    const normalized = String(photoPath || '').trim();
+    if (!normalized.startsWith('/uploads/')) {
+        return null;
+    }
+    const abs = path.join(__dirname, normalized.replace(/^\//, ''));
+    return fs.existsSync(abs) ? abs : null;
+}
+
+async function fetchAllStudentsForReports() {
+    const usuarios = await Usuario.findAll({
+        where: { role: 'STD' },
+        attributes: ['id', 'user_code', 'first_name', 'last_name', 'photo', 'birth_date', 'actual_belt', 'actual_degree', 'user_status'],
+        order: [['first_name', 'ASC'], ['last_name', 'ASC']]
+    });
+
+    return usuarios.map((u) => {
+        const plain = u.get({ plain: true });
+        const fullName = `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code;
+        const beltDisplay = getBeltDisplayData(plain.actual_belt, plain.actual_degree);
+        const birthParts = parseBirthDateParts(plain.birth_date);
+        const birthYmd = birthParts ? buildYmdFromParts(birthParts) : '';
+        return {
+            ...plain,
+            full_name: fullName,
+            sort_key: normalizeNameSortKey(fullName),
+            is_active: plain.user_status === 'A',
+            photo: plain.photo || '/uploads/users/default.jpg',
+            birth_date_ymd: birthYmd,
+            birth_date_br: birthYmd ? formatDateBrFromYmd(birthYmd) : '-',
+            belt_label: beltDisplay.beltLabel,
+            degree_label: beltDisplay.degreeLabel,
+            belt_summary_label: beltDisplay.summaryLabel,
+            belt_image_path: beltDisplay.imagePath,
+            belt_group_order_desc: getBeltGroupOrderDesc(plain.actual_belt),
+            belt_badge_class: getBeltBadgeClass(plain.actual_belt)
+        };
+    });
+}
+
+function ensureProfessorRoute(req, res) {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const vm = getErrorViewModel(403);
+        return res.status(403).render('errors/error', vm);
+    }
+    return null;
+}
+
+function setDownloadHeaders(res, filename, contentType) {
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+}
+
+async function exportStudentsToXlsx(res, filename, rows, columns) {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Relatório');
+
+    sheet.columns = columns.map((c) => ({
+        header: c.header,
+        key: c.key,
+        width: c.width || 22
+    }));
+
+    rows.forEach((r) => {
+        sheet.addRow(r);
+    });
+
+    sheet.getRow(1).font = { bold: true };
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    setDownloadHeaders(res, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    await workbook.xlsx.write(res);
+    res.end();
+}
+
+function exportStudentsToPdf(res, filename, title, rows, options = {}) {
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    setDownloadHeaders(res, filename, 'application/pdf');
+    doc.pipe(res);
+
+    const headerTitle = options.headerTitle ? String(options.headerTitle) : String(title || '');
+    const headerTitleAlign = options.headerTitleAlign ? String(options.headerTitleAlign) : 'left';
+    const headerUppercase = options.headerUppercaseTitle === true;
+    const headerLines = Array.isArray(options.headerLines) ? options.headerLines : null;
+    const headerLinesAlign = options.headerLinesAlign ? String(options.headerLinesAlign) : headerTitleAlign;
+
+    const safeTitle = headerUppercase ? headerTitle.toUpperCase() : headerTitle;
+    doc.fontSize(16).text(safeTitle, { align: headerTitleAlign });
+    doc.moveDown(0.25);
+
+    if (headerLines && headerLines.length > 0) {
+        doc.fontSize(10).fillColor('#555');
+        headerLines.forEach((line) => {
+            doc.text(String(line || ''), { align: headerLinesAlign });
+        });
+        doc.moveDown(0.8);
+    } else {
+        doc.fontSize(10).fillColor('#555').text(`Gerado em: ${getTodayYmd()}`);
+        doc.moveDown(1);
+    }
+
+    doc.fillColor('#000');
+
+    const startX = doc.x;
+    let y = doc.y;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+    const colAvatar = options.includeAvatar ? 34 : 0;
+    const colStatus = options.includeStatus ? 70 : 0;
+    const colBelt = options.includeBelt ? 150 : 0;
+    const colDegree = options.includeDegree ? (options.degreeColWidth ? Number(options.degreeColWidth) : 90) : 0;
+    const colTotal = options.includeTotal ? (options.totalColWidth ? Number(options.totalColWidth) : 60) : 0;
+    const colName = pageWidth - colAvatar - colStatus - colBelt - colDegree - colTotal;
+
+    const headerHeight = 20;
+    const rowHeight = options.includeAvatar ? 34 : 22;
+
+    function drawHeader() {
+        doc.rect(startX, y, pageWidth, headerHeight).fill('#f2f2f2');
+        doc.fillColor('#000').fontSize(10);
+        let x = startX;
+        if (options.includeAvatar) {
+            doc.text('Avatar', x + 4, y + 6, { width: colAvatar - 8 });
+            x += colAvatar;
+        }
+        doc.text('Nome completo', x + 4, y + 6, { width: colName - 8 });
+        x += colName;
+        if (options.includeTotal) {
+            doc.text('Total', x + 4, y + 6, { width: colTotal - 8, align: 'right' });
+            x += colTotal;
+        }
+        if (options.includeBelt) {
+            doc.text('Faixa', x + 4, y + 6, { width: colBelt - 8 });
+            x += colBelt;
+        }
+        if (options.includeDegree) {
+            doc.text('Grau', x + 4, y + 6, { width: colDegree - 8, align: 'right' });
+            x += colDegree;
+        }
+        if (options.includeStatus) {
+            doc.text('Status', x + 4, y + 6, { width: colStatus - 8, align: 'right' });
+        }
+        y += headerHeight;
+    }
+
+    function ensureSpaceForRow() {
+        const bottomY = doc.page.height - doc.page.margins.bottom;
+        if (y + rowHeight > bottomY) {
+            doc.addPage();
+            y = doc.page.margins.top;
+            drawHeader();
+        }
+    }
+
+    drawHeader();
+
+    doc.fontSize(10);
+    rows.forEach((r) => {
+        ensureSpaceForRow();
+        let x = startX;
+        // manter apenas uma linha fina no rodapé
+        doc
+            .strokeColor('#c0c0c0')
+            .lineWidth(1)
+            .moveTo(startX, y + rowHeight)
+            .lineTo(startX + pageWidth, y + rowHeight)
+            .stroke();
+
+        if (options.includeAvatar) {
+            const abs = resolveLocalUploadFile(r.photo);
+            if (abs) {
+                try {
+                    doc.image(abs, x + 5, y + 5, { width: 24, height: 24 });
+                } catch (_err) {
+                    // ignora falha de imagem
+                }
+            }
+            x += colAvatar;
+        }
+
+        const nameTopY = y + (options.includeAvatar ? 6 : 6);
+        doc.fillColor('#000').text(String(r.full_name || '-'), x + 4, nameTopY, { width: colName - 8 });
+        if (options.includeNameNote) {
+            const note = String(r.belt_summary_label || '').trim();
+            if (note) {
+                doc.fillColor('#666').fontSize(9).text(note, x + 4, nameTopY + 14, { width: colName - 8 });
+                doc.fontSize(10).fillColor('#000');
+            }
+        }
+        x += colName;
+
+        if (options.includeTotal) {
+            const totalText = String((r && (r.presencas_count ?? r.total)) ?? '');
+            doc.fillColor('#333').text(totalText, x + 4, y + 8, { width: colTotal - 8, align: 'right' });
+            x += colTotal;
+        }
+
+        if (options.includeBelt) {
+            doc.fillColor('#333').text(String(r.belt_label || '-'), x + 4, y + 8, { width: colBelt - 8 });
+            x += colBelt;
+        }
+
+        if (options.includeDegree) {
+            doc.fillColor('#333').text(String(r.degree_label || '-'), x + 4, y + 8, { width: colDegree - 8, align: 'right' });
+            x += colDegree;
+        }
+
+        if (options.includeStatus) {
+            doc.fillColor('#333').text(r.is_active ? 'Ativo' : 'Inativo', x + 4, y + 8, { width: colStatus - 8, align: 'right' });
+        }
+
+        y += rowHeight;
+    });
+
+    doc.end();
 }
 
 function getDefaultRedirectByRole(role) {
@@ -3413,6 +3712,8 @@ app.post('/aluno/status/:id', async (req, res) => {
             return res.status(404).json({ error: 'Aluno não encontrado' });
         }
 
+        const previousStatus = usuario.user_status;
+
         // Validar transição de status
         const validTransitions = {
             'P': ['A', 'C'],      // Pendente pode ir para Ativo ou Cancelado
@@ -3429,10 +3730,29 @@ app.post('/aluno/status/:id', async (req, res) => {
         usuario.user_status = newStatus;
         await usuario.save();
 
+        let finalizedPhoto = null;
+        if (previousStatus === 'P' && newStatus === 'A') {
+            try {
+                finalizedPhoto = await finalizePendingPhotoIfNeeded(usuario);
+            } catch (error) {
+                usuario.user_status = 'P';
+                await usuario.save();
+                return res.status(500).json({
+                    ok: false,
+                    error: 'Erro ao aprovar foto do cadastro: ' + error.message
+                });
+            }
+        }
+
         return res.status(200).json({ 
             ok: true, 
             message: 'Status atualizado com sucesso',
-            newStatus 
+            newStatus,
+            photo: usuario.photo,
+            finalizedPhoto: finalizedPhoto ? {
+                finalFileName: finalizedPhoto.finalFileName,
+                fileSize: finalizedPhoto.fileSize
+            } : null
         });
     } catch (err) {
         return res.status(500).json({ error: 'Erro ao atualizar status: ' + err.message });
@@ -3714,6 +4034,320 @@ function buildPresencaViewModel(p) {
         class_type_display: classTypeDisplayMap[plain.class_type] || plain.class_type
     };
 }
+
+// =========================
+// RELATÓRIOS (PRO/ADM)
+// =========================
+app.get('/relatorios', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+    return res.render('relatorios');
+});
+
+app.get('/relatorios/nomes', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    try {
+        const alunos = await fetchAllStudentsForReports();
+        alunos.sort((a, b) => {
+            const aActive = a.is_active ? 0 : 1;
+            const bActive = b.is_active ? 0 : 1;
+            if (aActive !== bActive) return aActive - bActive;
+            return a.sort_key.localeCompare(b.sort_key);
+        });
+        return res.render('relatorios_nomes', { alunos });
+    } catch (err) {
+        const vm = getErrorViewModel(500);
+        return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar relatório: ' + err.message });
+    }
+});
+
+app.get('/relatorios/nomes/download', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const format = String(req.query.format || '').toLowerCase();
+    if (!['pdf', 'xlsx'].includes(format)) {
+        return res.status(400).send('Formato inválido.');
+    }
+
+    const datePrefix = getTodayYmd();
+    const baseName = `${datePrefix}-Lista-de-Alunos-por-Nome.${format}`;
+
+    const alunos = await fetchAllStudentsForReports();
+    alunos.sort((a, b) => {
+        const aActive = a.is_active ? 0 : 1;
+        const bActive = b.is_active ? 0 : 1;
+        if (aActive !== bActive) return aActive - bActive;
+        return a.sort_key.localeCompare(b.sort_key);
+    });
+
+    if (format === 'xlsx') {
+        return exportStudentsToXlsx(res, baseName, alunos.map((a) => ({
+            nome: a.full_name,
+            status: a.is_active ? 'Ativo' : 'Inativo',
+            faixa: a.belt_label,
+            grau: a.degree_label,
+            aniversario: a.birth_date_br
+        })), [
+            { header: 'Nome completo', key: 'nome', width: 34 },
+            { header: 'Status', key: 'status', width: 12 },
+            { header: 'Faixa', key: 'faixa', width: 18 },
+            { header: 'Grau', key: 'grau', width: 14 },
+            { header: 'Aniversário', key: 'aniversario', width: 14 }
+        ]);
+    }
+
+    return exportStudentsToPdf(res, baseName, 'Lista de alunos por nome', alunos, {
+        includeAvatar: true,
+        includeStatus: true,
+        includeBelt: false
+    });
+});
+
+app.get('/relatorios/faixas', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    try {
+        const alunos = await fetchAllStudentsForReports();
+        alunos.sort((a, b) => {
+            const groupDiff = b.belt_group_order_desc - a.belt_group_order_desc;
+            if (groupDiff !== 0) return groupDiff;
+            return a.sort_key.localeCompare(b.sort_key);
+        });
+        return res.render('relatorios_faixas', { alunos });
+    } catch (err) {
+        const vm = getErrorViewModel(500);
+        return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar relatório: ' + err.message });
+    }
+});
+
+app.get('/relatorios/faixas/download', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const format = String(req.query.format || '').toLowerCase();
+    if (!['pdf', 'xlsx'].includes(format)) {
+        return res.status(400).send('Formato inválido.');
+    }
+
+    const datePrefix = getTodayYmd();
+    const baseName = `${datePrefix}-Lista-de-Faixas.${format}`;
+
+    const alunos = await fetchAllStudentsForReports();
+    alunos.sort((a, b) => {
+        const groupDiff = b.belt_group_order_desc - a.belt_group_order_desc;
+        if (groupDiff !== 0) return groupDiff;
+        return a.sort_key.localeCompare(b.sort_key);
+    });
+
+    if (format === 'xlsx') {
+        return exportStudentsToXlsx(res, baseName, alunos.map((a) => ({
+            nome: a.full_name,
+            faixa: a.belt_label,
+            grau: a.degree_label,
+            status: a.is_active ? 'Ativo' : 'Inativo'
+        })), [
+            { header: 'Nome completo', key: 'nome', width: 34 },
+            { header: 'Faixa', key: 'faixa', width: 18 },
+            { header: 'Grau', key: 'grau', width: 14 },
+            { header: 'Status', key: 'status', width: 12 }
+        ]);
+    }
+
+    return exportStudentsToPdf(res, baseName, 'Lista de alunos por faixas', alunos, {
+        includeAvatar: true,
+        includeStatus: false,
+        includeBelt: false,
+        includeDegree: false,
+        includeNameNote: true,
+        headerTitle: 'LISTA DE ALUNOS POR FAIXA',
+        headerUppercaseTitle: true,
+        headerTitleAlign: 'center',
+        headerLinesAlign: 'center',
+        headerLines: [
+            `Data: ${formatDateBrFromYmd(getTodayYmd())}`,
+            `Total de alunos: ${Array.isArray(alunos) ? alunos.length : 0}`
+        ]
+    });
+});
+
+async function fetchMetaOptionsForReport(selectedMetaId) {
+    const metas = await MetaAula.findAll({
+        attributes: ['id', 'title', 'start_date', 'end_date'],
+        order: [['start_date', 'DESC'], ['id', 'DESC']]
+    });
+    return metas.map((m) => {
+        const plain = m.get({ plain: true });
+        const idStr = String(plain.id);
+        return {
+            ...plain,
+            selected: selectedMetaId && idStr === String(selectedMetaId),
+            start_date_br: formatDateBrFromYmd(plain.start_date),
+            end_date_br: formatDateBrFromYmd(plain.end_date)
+        };
+    });
+}
+
+async function buildPresencasReportData(startYmd, endYmd) {
+    const startDate = toDateStartOfDay(startYmd);
+    const endDate = toDateEndOfDay(endYmd);
+    if (!startDate || !endDate) {
+        return { alunos: [], periodoLabel: '', hasPeriodo: false };
+    }
+
+    const countRows = await Presenca.findAll({
+        attributes: [
+            'user_code',
+            [Sequelize.fn('COUNT', Sequelize.col('id')), 'presencas_count']
+        ],
+        where: {
+            status: 'A',
+            request_date: { [Op.between]: [startDate, endDate] }
+        },
+        group: ['user_code']
+    });
+
+    const countMap = countRows.reduce((acc, r) => {
+        const plain = r.get({ plain: true });
+        acc[String(plain.user_code)] = Number(plain.presencas_count) || 0;
+        return acc;
+    }, {});
+
+    const alunos = await fetchAllStudentsForReports();
+    alunos.forEach((a) => {
+        a.presencas_count = countMap[String(a.user_code)] || 0;
+    });
+    alunos.sort((a, b) => a.sort_key.localeCompare(b.sort_key));
+
+    return {
+        alunos,
+        hasPeriodo: true,
+        periodoLabel: `${formatDateBrFromYmd(startYmd)} - ${formatDateBrFromYmd(endYmd)}`
+    };
+}
+
+app.get('/relatorios/presencas', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    try {
+        const selectedMode = String(req.query.mode || '').toLowerCase() || '';
+        const metaId = req.query.metaId ? String(req.query.metaId) : '';
+        const selectedStart = req.query.start ? String(req.query.start) : '';
+        const selectedEnd = req.query.end ? String(req.query.end) : '';
+
+        const metas = await fetchMetaOptionsForReport(metaId);
+
+        let startYmd = '';
+        let endYmd = '';
+        let downloadQuery = '';
+
+        if (selectedMode === 'meta' && metaId) {
+            const meta = await MetaAula.findByPk(metaId);
+            if (meta) {
+                const plain = meta.get({ plain: true });
+                startYmd = plain.start_date;
+                endYmd = plain.end_date;
+                downloadQuery = `&mode=meta&metaId=${encodeURIComponent(metaId)}`;
+            }
+        } else if (selectedMode === 'range' && selectedStart && selectedEnd) {
+            startYmd = selectedStart;
+            endYmd = selectedEnd;
+            downloadQuery = `&mode=range&start=${encodeURIComponent(selectedStart)}&end=${encodeURIComponent(selectedEnd)}`;
+        }
+
+        const report = startYmd && endYmd
+            ? await buildPresencasReportData(startYmd, endYmd)
+            : { alunos: [], hasPeriodo: false, periodoLabel: '' };
+
+        return res.render('relatorios_presencas', {
+            metas,
+            selectedMode: selectedMode || 'meta',
+            selectedStart,
+            selectedEnd,
+            hasPeriodo: report.hasPeriodo,
+            periodoLabel: report.periodoLabel,
+            alunos: report.alunos,
+            alunosJSON: JSON.stringify(report.alunos || []),
+            downloadQuery
+        });
+    } catch (err) {
+        const vm = getErrorViewModel(500);
+        return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar relatório: ' + err.message });
+    }
+});
+
+app.get('/relatorios/presencas/download', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const format = String(req.query.format || '').toLowerCase();
+    if (!['pdf', 'xlsx'].includes(format)) {
+        return res.status(400).send('Formato inválido.');
+    }
+
+    const selectedMode = String(req.query.mode || '').toLowerCase();
+    const metaId = req.query.metaId ? String(req.query.metaId) : '';
+    const selectedStart = req.query.start ? String(req.query.start) : '';
+    const selectedEnd = req.query.end ? String(req.query.end) : '';
+
+    let startYmd = '';
+    let endYmd = '';
+
+    if (selectedMode === 'meta' && metaId) {
+        const meta = await MetaAula.findByPk(metaId);
+        if (meta) {
+            const plain = meta.get({ plain: true });
+            startYmd = plain.start_date;
+            endYmd = plain.end_date;
+        }
+    } else if (selectedMode === 'range' && selectedStart && selectedEnd) {
+        startYmd = selectedStart;
+        endYmd = selectedEnd;
+    }
+
+    if (!startYmd || !endYmd) {
+        return res.status(400).send('Período ausente.');
+    }
+
+    const report = await buildPresencasReportData(startYmd, endYmd);
+    const alunos = report.alunos || [];
+
+    const datePrefix = getTodayYmd();
+    const baseName = `${datePrefix}-Lista-de-Presencas.${format}`;
+
+    if (format === 'xlsx') {
+        return exportStudentsToXlsx(res, baseName, alunos.map((a) => ({
+            nome: a.full_name,
+            presencas: a.presencas_count,
+            faixa: a.belt_label,
+            grau: a.degree_label
+        })), [
+            { header: 'Nome completo', key: 'nome', width: 34 },
+            { header: 'Total', key: 'presencas', width: 12 },
+            { header: 'Faixa', key: 'faixa', width: 18 },
+            { header: 'Grau', key: 'grau', width: 14 }
+        ]);
+    }
+
+    return exportStudentsToPdf(res, baseName, `Lista de presenças (${report.periodoLabel})`, alunos, {
+        includeAvatar: true,
+        includeStatus: false,
+        includeBelt: false,
+        includeTotal: true,
+        headerTitle: 'QUANTIDADE DE PRESENCAS',
+        headerUppercaseTitle: true,
+        headerTitleAlign: 'center',
+        headerLinesAlign: 'center',
+        headerLines: [
+            `Período: ${report.periodoLabel}`,
+            `Total de alunos: ${Array.isArray(alunos) ? alunos.length : 0}`
+        ]
+    });
+});
 
 app.get('/presenca', async (req, res) => {
     const pageRaw = parseInt(req.query.page, 10);

@@ -1,7 +1,7 @@
 const { sequelize } = require('../models/db');
 const Turma = require('../models/Turma');
 const Usuario = require('../models/Usuario');
-const generateCode = require('../utils/classcode_generator');
+const generateCode = require('./classcode_generator');
 
 async function generateUniqueClassCode() {
   for (let attempt = 0; attempt < 50; attempt += 1) {

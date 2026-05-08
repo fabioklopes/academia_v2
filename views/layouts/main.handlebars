@@ -18,6 +18,36 @@
                 --app-footer-height: 0px;
             }
 
+            /* js-datepicker (mobile-first): não pode estourar a tela nem o layout */
+            .qs-datepicker-container {
+                z-index: 2000; /* acima de navbar/modais */
+                max-width: min(22rem, calc(100vw - 1rem));
+                width: auto;
+            }
+
+            .qs-datepicker {
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .qs-datepicker .qs-controls {
+                padding: 0.4rem 0.5rem;
+            }
+
+            .qs-datepicker .qs-squares {
+                width: 100%;
+            }
+
+            .qs-datepicker .qs-square {
+                padding: 0.45rem 0;
+            }
+
+            @media (min-width: 576px) {
+                .qs-datepicker-container {
+                    max-width: min(24rem, calc(100vw - 2rem));
+                }
+            }
+
             /* Modais com static backdrop não devem “tomar” header/footer */
             .modal {
                 padding-top: calc(var(--app-header-height) + 0.75rem);
@@ -253,6 +283,154 @@
         <script src="/js/popper.min.js" defer></script>
         <script src="/js/bootstrap.min.js" defer></script>
         <script src="/js/auto-dismiss.js" defer></script>
+        <script>
+            (function initAppDatepickers() {
+                const DATEPICKER_PT_BR = {
+                    customDays: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
+                    customMonths: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
+                    overlayPlaceholder: 'Digite o ano',
+                    overlayButton: 'Ir',
+                    startDay: 0, // domingo
+                };
+
+                function pad2(n) {
+                    return String(Math.max(0, n)).padStart(2, '0');
+                }
+
+                function formatISO(d) {
+                    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+                    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+                }
+
+                function parseISO(value) {
+                    const v = String(value || '').trim();
+                    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                    if (!m) return null;
+                    const y = Number(m[1]);
+                    const mo = Number(m[2]);
+                    const da = Number(m[3]);
+                    if (!y || mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+                    const dt = new Date(y, mo - 1, da);
+                    if (Number.isNaN(dt.getTime())) return null;
+                    if (dt.getFullYear() !== y || (dt.getMonth() + 1) !== mo || dt.getDate() !== da) return null;
+                    return dt;
+                }
+
+                function formatBR(d) {
+                    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+                    return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+                }
+
+                function parseBR(value) {
+                    const v = String(value || '').trim();
+                    const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                    if (!m) return null;
+                    const da = Number(m[1]);
+                    const mo = Number(m[2]);
+                    const y = Number(m[3]);
+                    if (!y || mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+                    const dt = new Date(y, mo - 1, da);
+                    if (Number.isNaN(dt.getTime())) return null;
+                    if (dt.getFullYear() !== y || (dt.getMonth() + 1) !== mo || dt.getDate() !== da) return null;
+                    return dt;
+                }
+
+                function getViewportInsets() {
+                    const styles = getComputedStyle(document.documentElement);
+                    const header = parseInt(styles.getPropertyValue('--app-header-height') || '0', 10) || 0;
+                    const footer = parseInt(styles.getPropertyValue('--app-footer-height') || '0', 10) || 0;
+                    return { top: Math.max(0, header), bottom: Math.max(0, footer) };
+                }
+
+                function clampDatepickerContainer(container) {
+                    if (!container) return;
+                    const rect = container.getBoundingClientRect();
+                    const pad = 8;
+                    const insets = getViewportInsets();
+
+                    const maxLeft = Math.max(pad, window.innerWidth - pad - rect.width);
+                    const minLeft = pad;
+                    const maxTop = Math.max(pad + insets.top, window.innerHeight - pad - insets.bottom - rect.height);
+                    const minTop = pad + insets.top;
+
+                    const desiredLeft = Math.min(Math.max(rect.left, minLeft), maxLeft);
+                    const desiredTop = Math.min(Math.max(rect.top, minTop), maxTop);
+
+                    const cs = getComputedStyle(container);
+                    const pos = cs.position;
+                    const dx = desiredLeft - rect.left;
+                    const dy = desiredTop - rect.top;
+                    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+
+                    if (pos === 'fixed') {
+                        container.style.left = `${(rect.left + dx)}px`;
+                        container.style.top = `${(rect.top + dy)}px`;
+                    } else {
+                        container.style.left = `${(rect.left + dx + window.scrollX)}px`;
+                        container.style.top = `${(rect.top + dy + window.scrollY)}px`;
+                    }
+
+                    container.style.maxWidth = `min(24rem, calc(100vw - ${pad * 2}px))`;
+                    container.style.maxHeight = `calc(100vh - ${insets.top + insets.bottom + pad * 2}px)`;
+                }
+
+                function clampLatestDatepickerSoon() {
+                    window.setTimeout(() => {
+                        const containers = Array.from(document.querySelectorAll('.qs-datepicker-container'));
+                        const latest = containers[containers.length - 1];
+                        clampDatepickerContainer(latest);
+                    }, 0);
+                }
+
+                function attachDatepickerToInput(inputEl, mode) {
+                    if (!inputEl || inputEl.dataset.datepickerBound === '1') return;
+                    if (inputEl.readOnly || inputEl.disabled) return;
+
+                    inputEl.dataset.datepickerBound = '1';
+
+                    const isBR = mode === 'br';
+                    const parser = isBR ? parseBR : parseISO;
+                    const formatter = isBR
+                        ? (input, date) => { input.value = formatBR(date); }
+                        : (input, date) => { input.value = formatISO(date); };
+
+                    datepicker(inputEl, {
+                        ...DATEPICKER_PT_BR,
+                        formatter,
+                        parser: (str) => parser(str),
+                        onShow: clampLatestDatepickerSoon,
+                        onSelect: clampLatestDatepickerSoon,
+                        position: 'bl',
+                    });
+
+                    inputEl.addEventListener('focus', clampLatestDatepickerSoon);
+                    inputEl.addEventListener('click', clampLatestDatepickerSoon);
+                }
+
+                function init() {
+                    if (typeof datepicker !== 'function') return;
+
+                    // ISO (aaaa-mm-dd): inputs que antes eram type="date"
+                    document.querySelectorAll('#birth_date, #rangeStart, #rangeEnd').forEach((el) => {
+                        attachDatepickerToInput(el, 'iso');
+                    });
+
+                    // BR (dd/mm/aaaa): metas
+                    document.querySelectorAll('.meta-date-input').forEach((el) => {
+                        attachDatepickerToInput(el, 'br');
+                    });
+
+                    window.addEventListener('resize', clampLatestDatepickerSoon);
+                    window.addEventListener('scroll', clampLatestDatepickerSoon, true);
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', init);
+                } else {
+                    init();
+                }
+            })();
+        </script>
         <script>
             (function syncLayoutChromeHeights() {
                 function compute() {

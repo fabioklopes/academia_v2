@@ -144,7 +144,7 @@
         </div>
 
         <div class="form-floating mb-3">
-            <input type="date" class="form-control" id="birth_date" name="birth_date" {{#if camposErro.birth_date}}{{/if}} value="{{usuario.birth_date}}" placeholder="" {{#if isEditMode}}readonly{{else}}required{{/if}}>
+            <input type="text" class="form-control" id="birth_date" name="birth_date" {{#if camposErro.birth_date}}{{/if}} value="{{usuario.birth_date}}" placeholder="aaaa-mm-dd" inputmode="numeric" autocomplete="off" {{#if isEditMode}}readonly{{else}}required{{/if}}>
             <label for="birth_date">Aniversário</label>
             {{#if camposErro.birth_date}}<div class="invalid-feedback" style="display:block;">{{camposErro.birth_date}}</div>{{/if}}
         </div>

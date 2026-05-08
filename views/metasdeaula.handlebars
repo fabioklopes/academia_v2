@@ -24,6 +24,8 @@
              data-meta-classes="{{classesLabel}}"
              data-meta-start-date="{{start_date}}"
              data-meta-end-date="{{end_date}}"
+             data-meta-exam-start-date="{{exam_start_date}}"
+             data-meta-exam-end-date="{{exam_end_date}}"
              data-meta-status="{{status}}"
              data-meta-status-label="{{statusLabel}}">
             <div class="card-body">
@@ -77,6 +79,10 @@
                         <div class="small text-body-secondary mb-1">Período</div>
                         <div class="fs-6" id="metaDetailPeriod"></div>
                     </div>
+                    <div class="col-md-6">
+                        <div class="small text-body-secondary mb-1">Período de Exame</div>
+                        <div class="fs-6" id="metaDetailExamPeriod"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -92,6 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const detailDescription = document.getElementById('metaDetailDescription');
     const detailClasses = document.getElementById('metaDetailClasses');
     const detailPeriod = document.getElementById('metaDetailPeriod');
+    const detailExamPeriod = document.getElementById('metaDetailExamPeriod');
 
     metaCards.forEach(card => {
         card.addEventListener('click', function() {
@@ -100,6 +107,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const classes = this.dataset.metaClasses;
             const startDate = this.dataset.metaStartDate;
             const endDate = this.dataset.metaEndDate;
+            const examStartDate = this.dataset.metaExamStartDate;
+            const examEndDate = this.dataset.metaExamEndDate;
             const status = this.dataset.metaStatus;
             const statusLabel = this.dataset.metaStatusLabel;
 
@@ -107,6 +116,7 @@ document.addEventListener('DOMContentLoaded', function() {
             detailDescription.textContent = description;
             detailClasses.textContent = classes;
             detailPeriod.textContent = `${startDate} a ${endDate}`;
+            detailExamPeriod.textContent = `${examStartDate} à ${examEndDate}`;
             detailStatusBadge.textContent = statusLabel;
             detailStatusBadge.className = `badge bg-${status === 'A' ? 'success' : 'secondary'}`;
 
@@ -361,6 +371,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         data-meta-professor="{{#if criador}}{{criador.first_name}} {{criador.last_name}}{{else}}-{{/if}}"
                         data-meta-inicio="{{start_date}}"
                         data-meta-termino="{{end_date}}"
+                        data-meta-exam-inicio="{{exam_start_date}}"
+                        data-meta-exam-termino="{{exam_end_date}}"
                     >
                         <td><strong>{{title}}</strong></td>
                     </tr>
@@ -412,6 +424,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p class="mb-0">
                         <strong>Término:</strong> <span id="metaTerminoModal"></span>
                     </p>
+                    <p class="mb-0 mt-2">
+                        <strong>Período de Exame:</strong> <span id="metaExamPeriodoModal"></span>
+                    </p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -445,12 +460,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const professor = this.dataset.metaProfessor;
             const inicio = this.dataset.metaInicio;
             const termino = this.dataset.metaTermino;
+            const examInicio = this.dataset.metaExamInicio;
+            const examTermino = this.dataset.metaExamTermino;
 
             document.getElementById('metaTitleModal').textContent = title;
             document.getElementById('metaDescriptionModal').textContent = description;
             document.getElementById('metaProfessorModal').textContent = professor;
             document.getElementById('metaInicioModal').textContent = inicio;
             document.getElementById('metaTerminoModal').textContent = termino;
+            document.getElementById('metaExamPeriodoModal').textContent = `${examInicio} à ${examTermino}`;
 
             const modal = new bootstrap.Modal(document.getElementById('modalDetalheMetaAluno'));
             modal.show();

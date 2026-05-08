@@ -1792,12 +1792,16 @@ app.get('/metasdeaula', async (req, res) => {
                 // Formatar datas
                 const startDateFormatted = plain.start_date ? new Date(plain.start_date).toLocaleDateString('pt-BR') : '-';
                 const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
+                const examStartDateFormatted = plain.exam_start_date ? new Date(plain.exam_start_date).toLocaleDateString('pt-BR') : '-';
+                const examEndDateFormatted = plain.exam_end_date ? new Date(plain.exam_end_date).toLocaleDateString('pt-BR') : '-';
                 
                 return {
                     ...plain,
                     classesLabel,
                     start_date: startDateFormatted,
                     end_date: endDateFormatted,
+                    exam_start_date: examStartDateFormatted,
+                    exam_end_date: examEndDateFormatted,
                     statusLabel: plain.status === 'A' ? 'Ativa' : 'Encerrada'
                 };
             });
@@ -1877,12 +1881,16 @@ app.get('/metasdeaula', async (req, res) => {
             // Formatar datas
             const startDateFormatted = plain.start_date ? new Date(plain.start_date).toLocaleDateString('pt-BR') : '-';
             const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
+            const examStartDateFormatted = plain.exam_start_date ? new Date(plain.exam_start_date).toLocaleDateString('pt-BR') : '-';
+            const examEndDateFormatted = plain.exam_end_date ? new Date(plain.exam_end_date).toLocaleDateString('pt-BR') : '-';
             
             return {
                 ...plain,
                 classesLabel,
                 start_date: startDateFormatted,
-                end_date: endDateFormatted
+                end_date: endDateFormatted,
+                exam_start_date: examStartDateFormatted,
+                exam_end_date: examEndDateFormatted
             };
         });
 

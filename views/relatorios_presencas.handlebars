@@ -1,0 +1,313 @@
+<div class="container py-4">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-2 mb-3">
+        <div>
+            <h1 class="mb-1">Relatório por Presenças</h1>
+            <div class="text-body-secondary">
+                {{#if periodoLabel}}
+                    Período: <span class="fw-semibold">{{periodoLabel}}</span>
+                {{else}}
+                    Selecione um período para gerar a lista.
+                {{/if}}
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a class="btn btn-outline-secondary" href="/relatorios">
+                <i class="fa-solid fa-arrow-left"></i> Voltar
+            </a>
+
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPeriodoPresencas">
+                <i class="fa-solid fa-filter"></i> Período
+            </button>
+
+            <a class="btn btn-outline-danger {{#unless hasPeriodo}}disabled{{/unless}}"
+               href="/relatorios/presencas/download?format=pdf{{downloadQuery}}">
+                <i class="fa-solid fa-file-pdf"></i> PDF
+            </a>
+            <a class="btn btn-outline-success {{#unless hasPeriodo}}disabled{{/unless}}"
+               href="/relatorios/presencas/download?format=xlsx{{downloadQuery}}">
+                <i class="fa-solid fa-file-excel"></i> XLSX
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                <div class="text-body-secondary small">
+                    {{#if hasPeriodo}}
+                        Total de alunos: <span class="fw-semibold">{{alunos.length}}</span>
+                    {{else}}
+                        Nenhum período selecionado.
+                    {{/if}}
+                </div>
+
+                {{#if hasPeriodo}}
+                <div class="d-flex align-items-center gap-2">
+                    <label for="sortMode" class="form-label mb-0 small text-body-secondary">Ordenar por:</label>
+                    <select class="form-select form-select-sm" id="sortMode" style="max-width: 260px;">
+                        <option value="nome_asc" selected>Nome (A-Z)</option>
+                        <option value="presenca_desc">Presenças (maior - menor)</option>
+                        <option value="presenca_asc">Presenças (menor - maior)</option>
+                    </select>
+                </div>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Avatar</th>
+                            <th style="width: 100%;">Nome completo</th>
+                            <th class="text-end" style="width: 140px;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="presencasTbody">
+                        {{#if hasPeriodo}}
+                            {{#if alunos.length}}
+                                {{#each alunos}}
+                                <tr class="presenca-row" data-full-name="{{full_name}}" data-count="{{presencas_count}}">
+                                    <td>
+                                        <img src="{{photo}}" alt="Avatar de {{full_name}}" class="relatorio-avatar">
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">{{full_name}}</div>
+                                        <div class="text-body-secondary small">{{belt_summary_label}}</div>
+                                    </td>
+                                    <td class="text-end fw-semibold text-center">{{presencas_count}}</td>
+                                </tr>
+                                {{/each}}
+                            {{else}}
+                                <tr>
+                                    <td colspan="3" class="text-center text-body-secondary py-4">Nenhum aluno encontrado.</td>
+                                </tr>
+                            {{/if}}
+                        {{else}}
+                            <tr>
+                                <td colspan="3" class="text-center text-body-secondary py-4">Selecione um período para visualizar o relatório.</td>
+                            </tr>
+                        {{/if}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPeriodoPresencas" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Filtrar por Período</h5>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="periodoTipo">Período</label>
+                    <select class="form-select" id="periodoTipo">
+                        <option value="" selected disabled>Selecione…</option>
+                        <option value="meta">Meta de aula</option>
+                        <option value="range">Período específico</option>
+                    </select>
+                </div>
+
+                <div id="blocoMeta" style="display:none;">
+                    <div class="card border-0 bg-body-tertiary">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2">Metas de Aula</div>
+                            <div class="text-body-secondary small mb-3">Lista (mais atual - mais antiga).</div>
+                            <div class="list-group">
+                                {{#if metas.length}}
+                                    {{#each metas}}
+                                    <button type="button"
+                                            class="list-group-item list-group-item-action meta-item {{#if selected}}active{{/if}}"
+                                            data-meta-id="{{id}}"
+                                            {{#if selected}}aria-current="true"{{/if}}>
+                                        <div class="d-flex w-100 gap-1 flex-column">
+                                            <div class="fw-semibold" style="font-size: 1.05rem;">{{title}}</div>
+                                            <small class="text-body-secondary">{{start_date_br}} - {{end_date_br}}</small>
+                                        </div>
+                                    </button>
+                                    {{/each}}
+                                {{else}}
+                                    <div class="text-body-secondary small">Nenhuma meta cadastrada.</div>
+                                {{/if}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="blocoRange" style="display:none;">
+                    <div class="card border-0 bg-body-tertiary">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2">Datas específicas</div>
+                            <div class="text-body-secondary small mb-3">Informe início e término.</div>
+                            <div class="row g-2">
+                                <div class="col-12 col-lg-6">
+                                    <label class="form-label" for="rangeStart">Início</label>
+                                    <input class="form-control" type="date" id="rangeStart" value="{{selectedStart}}">
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label class="form-label" for="rangeEnd">Término</label>
+                                    <input class="form-control" type="date" id="rangeEnd" value="{{selectedEnd}}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3 mb-0 small" id="periodoWarn" style="display:none;">
+                    Selecione uma meta ou informe as duas datas.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="btnAplicarPeriodo">
+                    <i class="fa-solid fa-check"></i> Aplicar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .relatorio-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid var(--bs-border-color-translucent);
+    }
+</style>
+
+<script>
+    (() => {
+        const data = {{{alunosJSON}}};
+
+        function normalize(s) {
+            return String(s || '').toLocaleLowerCase('pt-BR');
+        }
+
+        function renderRows(items) {
+            const tbody = document.getElementById('presencasTbody');
+            if (!tbody) return;
+
+            const rowsHtml = items.map((a) => `
+                <tr class="presenca-row" data-full-name="${a.full_name || ''}" data-count="${a.presencas_count}">
+                    <td><img src="${a.photo || '/uploads/users/default.jpg'}" alt="Avatar de ${a.full_name || ''}" class="relatorio-avatar"></td>
+                    <td>
+                        <div class="fw-semibold">${a.full_name || '-'}</div>
+                        <div class="text-body-secondary small">${a.belt_summary_label || '-'}</div>
+                    </td>
+                    <td class="text-end fw-semibold">${a.presencas_count}</td>
+                </tr>
+            `).join('');
+
+            tbody.innerHTML = rowsHtml || `
+                <tr><td colspan="3" class="text-center text-body-secondary py-4">Nenhum aluno encontrado.</td></tr>
+            `;
+        }
+
+        function sortItems(mode) {
+            const items = Array.isArray(data) ? [...data] : [];
+            if (mode === 'presenca_desc') {
+                items.sort((a, b) => (Number(b.presencas_count) - Number(a.presencas_count)) || normalize(a.full_name).localeCompare(normalize(b.full_name)));
+            } else if (mode === 'presenca_asc') {
+                items.sort((a, b) => (Number(a.presencas_count) - Number(b.presencas_count)) || normalize(a.full_name).localeCompare(normalize(b.full_name)));
+            } else {
+                items.sort((a, b) => normalize(a.full_name).localeCompare(normalize(b.full_name)));
+            }
+            return items;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const sortEl = document.getElementById('sortMode');
+            if (sortEl) {
+                sortEl.addEventListener('change', () => {
+                    renderRows(sortItems(sortEl.value));
+                });
+            }
+
+            const periodoWarn = document.getElementById('periodoWarn');
+            const applyBtn = document.getElementById('btnAplicarPeriodo');
+            const rangeStart = document.getElementById('rangeStart');
+            const rangeEnd = document.getElementById('rangeEnd');
+            const modalEl = document.getElementById('modalPeriodoPresencas');
+            const tipoEl = document.getElementById('periodoTipo');
+            const blocoMeta = document.getElementById('blocoMeta');
+            const blocoRange = document.getElementById('blocoRange');
+
+            let selectedMeta = document.querySelector('.meta-item.active') || null;
+            document.querySelectorAll('.meta-item').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.meta-item').forEach((b) => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    selectedMeta = btn;
+                });
+            });
+
+            function hideAllBlocks() {
+                if (blocoMeta) blocoMeta.style.display = 'none';
+                if (blocoRange) blocoRange.style.display = 'none';
+            }
+
+            function onTipoChange() {
+                const v = tipoEl ? String(tipoEl.value || '') : '';
+                hideAllBlocks();
+                if (v === 'meta' && blocoMeta) blocoMeta.style.display = 'block';
+                if (v === 'range' && blocoRange) blocoRange.style.display = 'block';
+            }
+
+            if (tipoEl) {
+                tipoEl.addEventListener('change', onTipoChange);
+            }
+
+            if (modalEl) {
+                modalEl.addEventListener('show.bs.modal', () => {
+                    if (periodoWarn) periodoWarn.style.display = 'none';
+                    if (tipoEl) tipoEl.value = '';
+                    hideAllBlocks();
+                });
+            }
+
+            if (applyBtn) {
+                applyBtn.addEventListener('click', () => {
+                    const mode = tipoEl ? String(tipoEl.value || '') : '';
+                    if (periodoWarn) periodoWarn.style.display = 'none';
+
+                    if (mode === 'meta') {
+                        if (!selectedMeta) {
+                            if (periodoWarn) periodoWarn.style.display = 'block';
+                            return;
+                        }
+                        const metaId = selectedMeta.getAttribute('data-meta-id');
+                        if (!metaId) {
+                            if (periodoWarn) periodoWarn.style.display = 'block';
+                            return;
+                        }
+                        window.location.href = `/relatorios/presencas?mode=meta&metaId=${encodeURIComponent(metaId)}`;
+                        return;
+                    }
+
+                    if (mode !== 'range') {
+                        if (periodoWarn) periodoWarn.style.display = 'block';
+                        return;
+                    }
+
+                    const start = (rangeStart && rangeStart.value) ? rangeStart.value : '';
+                    const end = (rangeEnd && rangeEnd.value) ? rangeEnd.value : '';
+                    if (!start || !end) {
+                        if (periodoWarn) periodoWarn.style.display = 'block';
+                        return;
+                    }
+                    window.location.href = `/relatorios/presencas?mode=range&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+                });
+            }
+        });
+    })();
+</script>
+

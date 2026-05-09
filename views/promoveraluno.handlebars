@@ -1,0 +1,108 @@
+{{#if mensagem}}
+    <div class="alert {{#if (eq tipoMensagem 'danger')}}alert-danger{{else}}alert-primary{{/if}} text-center alert-autodismiss mb-3" role="alert">
+        {{mensagem}}
+    </div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <h1 class="mb-0">Promover aluno</h1>
+    <a href="/aluno" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-user-graduate"></i> Gerenciar alunos
+    </a>
+</div>
+
+<p class="text-body-secondary mb-4">
+    Selecione um aluno <strong>ativo</strong> e marque o interruptor para conceder perfil de professor (<strong>PRO</strong>).
+    Para reverter um professor a aluno, use o modal em <a href="/aluno">Gerenciar alunos</a>.
+</p>
+
+<style>
+    .promover-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid var(--bs-border-color-translucent);
+    }
+</style>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Aluno</th>
+            <th class="text-center" style="min-width: 11rem;">Professor</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#if usuarios.length}}
+            {{#each usuarios}}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="{{photo}}" alt="" class="promover-avatar">
+                            <div>
+                                <div class="fw-medium">{{first_name}} {{last_name}}</div>
+                                <small class="text-body-secondary">{{email}}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="form-check form-switch d-inline-flex flex-column align-items-center">
+                            <input
+                                class="form-check-input ms-0 js-promover-professor"
+                                type="checkbox"
+                                role="switch"
+                                data-user-id="{{id}}"
+                                aria-label="Promover {{first_name}} {{last_name}} a professor"
+                            >
+                            <small class="text-body-secondary mt-1 js-promover-label">Não</small>
+                        </div>
+                    </td>
+                </tr>
+            {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="2" class="text-center text-body-secondary py-4">
+                    Nenhum aluno ativo disponível para promoção.
+                </td>
+            </tr>
+        {{/if}}
+    </tbody>
+</table>
+
+<script>
+(function () {
+    const inputs = document.querySelectorAll('.js-promover-professor');
+    inputs.forEach(function (el) {
+        const label = el.closest('td') && el.closest('td').querySelector('.js-promover-label');
+        function syncLabel() {
+            if (label) {
+                label.textContent = el.checked ? 'Sim' : 'Não';
+            }
+        }
+        el.addEventListener('change', async function () {
+            const userId = el.getAttribute('data-user-id');
+            const isProfessor = el.checked;
+            el.disabled = true;
+            try {
+                const response = await fetch('/promoveraluno', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId, isProfessor: isProfessor })
+                });
+                const data = await response.json().catch(function () { return {}; });
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Não foi possível atualizar.');
+                }
+                window.location.reload();
+            } catch (err) {
+                alert(err.message || 'Erro ao promover.');
+                el.checked = !isProfessor;
+                syncLabel();
+                el.disabled = false;
+            }
+        });
+        syncLabel();
+    });
+})();
+</script>

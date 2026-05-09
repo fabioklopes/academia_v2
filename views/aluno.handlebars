@@ -145,6 +145,7 @@
                         data-last-name="{{last_name}}"
                         data-email="{{email}}"
                         data-role="{{role_label}}"
+                        data-role-code="{{role}}"
                         data-status="{{user_status_label}}"
                         data-status-code="{{user_status}}"
                         data-phone="{{formatPhone phone}}"
@@ -282,6 +283,14 @@
             </div>
 
             <div class="modal-footer d-block text-center">
+                {{#if hasProfessorPrivileges}}
+                <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
+                    <span class="aluno-detail-label">Status de professor:</span>
+                    <div class="form-check form-switch" id="alunoProfessorSwitchContainer">
+                        <input class="form-check-input" type="checkbox" id="alunoProfessorSwitch" role="switch">
+                        <label class="form-check-label" for="alunoProfessorSwitch" id="alunoProfessorLabel">Não</label>
+                    </div>
+                </div>
                 <div class="d-flex align-items-center justify-content-center gap-3 mb-3">
                     <span class="aluno-detail-label">Status do aluno:</span>
                     <div class="form-check form-switch" id="alunoStatusSwitchContainer">
@@ -289,6 +298,7 @@
                         <label class="form-check-label" for="alunoStatusSwitch" id="alunoStatusLabel">Ativo</label>
                     </div>
                 </div>
+                {{/if}}
                 <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
@@ -435,10 +445,39 @@
                 responsibleLink.onclick = null;
             }
 
+            const statusCode = trigger.getAttribute('data-status-code') || '';
+            const roleCode = (trigger.getAttribute('data-role-code') || '').trim().toUpperCase();
+
+            const professorSwitch = document.getElementById('alunoProfessorSwitch');
+            const professorLabel = document.getElementById('alunoProfessorLabel');
+            const professorContainer = document.getElementById('alunoProfessorSwitchContainer');
+            if (professorSwitch && professorContainer && professorLabel) {
+                const isProf = roleCode === 'PRO';
+                professorSwitch.checked = isProf;
+                professorSwitch.dataset.userId = alunoId || '';
+                professorSwitch.dataset.originalIsProfessor = isProf ? '1' : '0';
+                const cannotPromoteStudent = roleCode === 'STD' && statusCode !== 'A';
+                professorSwitch.disabled = roleCode === 'ADM' || cannotPromoteStudent;
+                if (roleCode === 'ADM') {
+                    professorSwitch.title = 'O perfil de administrador não pode ser alterado aqui.';
+                } else if (cannotPromoteStudent) {
+                    professorSwitch.title = 'Somente alunos ativos podem ser promovidos a professor.';
+                } else {
+                    professorSwitch.title = '';
+                }
+                professorContainer.classList.remove('text-success', 'text-danger', 'text-primary');
+                if (isProf) {
+                    professorLabel.textContent = 'Sim';
+                    professorContainer.classList.add('text-success');
+                } else {
+                    professorLabel.textContent = 'Não';
+                    professorContainer.classList.add('text-primary');
+                }
+            }
+
             // Configurar switch de status
             const statusSwitch = document.getElementById('alunoStatusSwitch');
             const statusLabel = document.getElementById('alunoStatusLabel');
-            const statusCode = trigger.getAttribute('data-status-code') || '';
             const switchContainer = document.getElementById('alunoStatusSwitchContainer');
             
             if (statusSwitch && switchContainer) {
@@ -488,6 +527,54 @@
                 lastTrigger.focus();
             }
         });
+
+        const professorSwitchEl = document.getElementById('alunoProfessorSwitch');
+        if (professorSwitchEl) {
+            professorSwitchEl.addEventListener('change', async function() {
+                const userId = this.dataset.userId;
+                const original = this.dataset.originalIsProfessor === '1';
+                const wantProfessor = this.checked;
+                if (!userId) {
+                    return;
+                }
+                if (wantProfessor === original) {
+                    return;
+                }
+                this.disabled = true;
+                try {
+                    const response = await fetch('/promoveraluno', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: userId, isProfessor: wantProfessor })
+                    });
+                    const data = await response.json().catch(function() { return {}; });
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.error || 'Erro ao atualizar perfil de professor.');
+                    }
+                    const modalInst = bootstrap.Modal.getInstance(document.getElementById('alunoModal'));
+                    if (modalInst) {
+                        modalInst.hide();
+                    }
+                    setTimeout(function() {
+                        location.reload();
+                    }, 500);
+                } catch (error) {
+                    console.error('Erro:', error);
+                    alert('Erro ao atualizar status de professor: ' + error.message);
+                    this.checked = original;
+                    const lbl = document.getElementById('alunoProfessorLabel');
+                    const cont = document.getElementById('alunoProfessorSwitchContainer');
+                    if (lbl) {
+                        lbl.textContent = original ? 'Sim' : 'Não';
+                    }
+                    if (cont) {
+                        cont.classList.remove('text-success', 'text-primary');
+                        cont.classList.add(original ? 'text-success' : 'text-primary');
+                    }
+                    this.disabled = false;
+                }
+            });
+        }
 
         // Listener para o switch de ativação/desativação
         const statusSwitch = document.getElementById('alunoStatusSwitch');

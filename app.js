@@ -3060,7 +3060,12 @@ app.get('/aluno', async (req, res) => {
             whereClauses.push({ [Op.or]: searchFilters });
         }
 
-        const where = whereClauses.length > 0 ? { [Op.and]: whereClauses } : {};
+        const whereClausesFinal = [...whereClauses];
+        if (hasProfessorPrivileges) {
+            whereClausesFinal.push({ role: { [Op.in]: ['STD', 'PRO'] } });
+        }
+
+        const where = whereClausesFinal.length > 0 ? { [Op.and]: whereClausesFinal } : {};
 
         const usuarios = await Usuario.findAll({
             where,
@@ -3768,6 +3773,104 @@ app.post('/aluno/status/:id', async (req, res) => {
     }
 });
 
+app.get('/promoveraluno', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Apenas professor ou administrador pode acessar esta página.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        const usuarios = await Usuario.findAll({
+            where: { role: 'STD', user_status: 'A' },
+            order: [['first_name', 'ASC'], ['last_name', 'ASC']],
+            attributes: ['id', 'first_name', 'last_name', 'email', 'photo', 'role', 'user_status']
+        });
+
+        const lista = usuarios.map((u) => {
+            const usuario = u.get({ plain: true });
+            return {
+                ...usuario,
+                role_label: getRoleLabel(usuario.role)
+            };
+        });
+
+        return res.render('promoveraluno', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || '',
+            usuarios: lista
+        });
+    } catch (err) {
+        return res.render('promoveraluno', {
+            mensagem: 'Erro ao carregar alunos: ' + err.message,
+            tipoMensagem: 'danger',
+            usuarios: []
+        });
+    }
+});
+
+app.post('/promoveraluno', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.status(403).json({ ok: false, error: 'Acesso não permitido.' });
+    }
+
+    const rawId = req.body.userId != null ? req.body.userId : req.body.id;
+    const userId = parseInt(rawId, 10);
+    const rawProfessor = req.body.isProfessor;
+    const isProfessor =
+        rawProfessor === true ||
+        rawProfessor === 'true' ||
+        rawProfessor === 1 ||
+        rawProfessor === '1';
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+        return res.status(400).json({ ok: false, error: 'Usuário inválido.' });
+    }
+
+    try {
+        const usuario = await Usuario.findByPk(userId);
+        if (!usuario) {
+            return res.status(404).json({ ok: false, error: 'Usuário não encontrado.' });
+        }
+
+        if (usuario.role === 'ADM') {
+            return res.status(400).json({ ok: false, error: 'Não é permitido alterar o perfil de administrador.' });
+        }
+
+        if (isProfessor) {
+            if (usuario.role !== 'STD') {
+                return res.status(400).json({ ok: false, error: 'Apenas alunos podem ser promovidos a professor.' });
+            }
+            if (usuario.user_status !== 'A') {
+                return res.status(400).json({
+                    ok: false,
+                    error: 'Somente alunos ativos podem ser promovidos a professor.'
+                });
+            }
+            usuario.role = 'PRO';
+            await usuario.save();
+        } else {
+            if (usuario.role !== 'PRO') {
+                return res.status(400).json({ ok: false, error: 'Apenas professores podem ser definidos como alunos.' });
+            }
+            usuario.role = 'STD';
+            await usuario.save();
+        }
+
+        const sessao = req.session.usuario;
+        if (sessao && sessao.id === usuario.id) {
+            sessao.role = usuario.role;
+        }
+
+        return res.status(200).json({
+            ok: true,
+            role: usuario.role,
+            message: isProfessor ? 'Usuário promovido a professor.' : 'Usuário definido como aluno.'
+        });
+    } catch (err) {
+        return res.status(500).json({ ok: false, error: 'Erro ao atualizar perfil: ' + err.message });
+    }
+});
+
 // Retorna estatísticas da meta atual do aluno (para modal /aluno)
 app.get('/aluno/:id/meta-atual', async (req, res) => {
     if (!hasProfessorAccess(req.session.usuario)) {
@@ -3781,8 +3884,12 @@ app.get('/aluno/:id/meta-atual', async (req, res) => {
         }
 
         const aluno = await Usuario.findByPk(alunoId, { attributes: ['id', 'user_code', 'role'] });
-        if (!aluno || aluno.role !== 'STD') {
+        if (!aluno || !['STD', 'PRO'].includes(aluno.role)) {
             return res.status(404).json({ ok: false, mensagem: 'Aluno não encontrado.' });
+        }
+
+        if (aluno.role === 'PRO') {
+            return res.json({ ok: true, progress: null });
         }
 
         const progress = await getCurrentMetaProgressForStudent(aluno.user_code);

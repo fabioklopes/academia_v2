@@ -1,0 +1,195 @@
+<div class="container py-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-4">
+        <div>
+            <h1 class="mb-1">Log de atividades</h1>
+            <div class="text-body-secondary">Registros de requisições à aplicação (administrador).</div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <h2 class="h6 text-body-secondary mb-3">Filtros</h2>
+            <form method="get" action="/admin/logs" class="row g-3 align-items-end">
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label for="filtroDataInicio" class="form-label">Data inicial</label>
+                    <input type="date" class="form-control" id="filtroDataInicio" name="data_inicio" value="{{filter.data_inicio}}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label for="filtroDataFim" class="form-label">Data final</label>
+                    <input type="date" class="form-control" id="filtroDataFim" name="data_fim" value="{{filter.data_fim}}">
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label for="filtroStatus" class="form-label">Status</label>
+                    <select class="form-select" id="filtroStatus" name="status">
+                        <option value="todos" {{#if filter.statusTodos}}selected{{/if}}>Todos</option>
+                        <option value="sucesso" {{#if filter.statusSucesso}}selected{{/if}}>Sucesso</option>
+                        <option value="falha" {{#if filter.statusFalha}}selected{{/if}}>Falha</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label for="filtroUsuario" class="form-label">Usuário</label>
+                    <select class="form-select" id="filtroUsuario" name="user_code">
+                        <option value="todos" {{#if filter.userTodos}}selected{{/if}}>Todos</option>
+                        {{#each userFilterOptions}}
+                            <option value="{{code}}" {{#if selected}}selected{{/if}}>{{code}}</option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label for="filtroPerPage" class="form-label">Itens por página</label>
+                    <select class="form-select" id="filtroPerPage" name="per_page">
+                        <option value="10" {{#if filter.per10}}selected{{/if}}>10</option>
+                        <option value="20" {{#if filter.per20}}selected{{/if}}>20</option>
+                        <option value="30" {{#if filter.per30}}selected{{/if}}>30</option>
+                        <option value="50" {{#if filter.per50}}selected{{/if}}>50</option>
+                    </select>
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-filter me-1"></i> Filtrar
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="btnLimparFiltrosLog">
+                        <i class="fa-solid fa-eraser me-1"></i> Limpar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive shadow-sm rounded-3 border bg-body">
+        <table class="table table-hover table-striped mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Data/Hora</th>
+                    <th scope="col">Usuário</th>
+                    <th scope="col">Ação</th>
+                    <th scope="col">Endpoint</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#if logs.length}}
+                    {{#each logs}}
+                        <tr>
+                            <td class="text-body-secondary">{{id}}</td>
+                            <td class="text-nowrap">{{data_hora_label}}</td>
+                            <td><code>{{user_code_label}}</code></td>
+                            <td><span class="badge bg-secondary-subtle text-secondary-emphasis border">{{action}}</span></td>
+                            <td class="text-break"><small>{{endpoint}}</small></td>
+                            <td class="{{status_class}} fw-semibold">{{status_label}}</td>
+                        </tr>
+                    {{/each}}
+                {{else}}
+                    <tr>
+                        <td colspan="6" class="text-center text-body-secondary py-4">Nenhum registro encontrado para os filtros informados.</td>
+                    </tr>
+                {{/if}}
+            </tbody>
+        </table>
+    </div>
+
+    <div
+        class="admin-logs-pagination-wrapper d-flex flex-column align-items-center gap-2 mt-4"
+        data-log-pagination-root
+        data-query-no-page="{{logsQueryStringNoPage}}"
+    >
+        <small class="text-body-secondary">Total de registros: {{pagination.totalItems}}</small>
+
+        {{#if pagination.totalPages}}
+        <div class="w-100 d-flex justify-content-center px-2" style="max-width: 100%;">
+            <div class="admin-logs-pagination-inner w-100" style="max-width: 100%;">
+                <nav class="admin-logs-pagination-nav d-flex justify-content-center" data-log-pagination-nav aria-label="Paginação do log">
+                    <ul class="pagination pagination-sm mb-0 flex-nowrap" data-log-pagination-ul>
+                        <li class="page-item {{#unless pagination.hasPrev}}disabled{{/unless}}">
+                            <a class="page-link" href="{{pagination.prevHref}}" aria-label="Página anterior">Anterior</a>
+                        </li>
+                        {{#each pagination.pageNumbers}}
+                            <li class="page-item {{#if isCurrent}}active{{/if}}">
+                                <a class="page-link" href="{{href}}">{{number}}</a>
+                            </li>
+                        {{/each}}
+                        <li class="page-item {{#unless pagination.hasNext}}disabled{{/unless}}">
+                            <a class="page-link" href="{{pagination.nextHref}}" aria-label="Próxima página">Próxima</a>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="admin-logs-pagination-select d-none justify-content-center align-items-center gap-2" data-log-pagination-select-wrap>
+                    <label for="adminLogsPageSelect" class="form-label mb-0 small text-body-secondary">Página</label>
+                    <select id="adminLogsPageSelect" class="form-select form-select-sm w-auto" data-log-pagination-select style="min-width: 8rem;">
+                        {{#each pagination.selectPages}}
+                            <option value="{{number}}" {{#if isCurrent}}selected{{/if}}>Página {{number}} de {{../pagination.totalPages}}</option>
+                        {{/each}}
+                    </select>
+                </div>
+            </div>
+        </div>
+        {{/if}}
+    </div>
+</div>
+
+<style>
+    .admin-logs-pagination-inner {
+        max-width: 100%;
+    }
+
+    .admin-logs-pagination-nav {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .admin-logs-pagination-nav .pagination {
+        flex-wrap: nowrap;
+    }
+</style>
+
+<script>
+    (() => {
+        const btnLimpar = document.getElementById('btnLimparFiltrosLog');
+        if (btnLimpar) {
+            btnLimpar.addEventListener('click', () => {
+                window.location.href = '{{clearLogsUrl}}';
+            });
+        }
+
+        const root = document.querySelector('[data-log-pagination-root]');
+        if (!root) return;
+
+        const nav = root.querySelector('[data-log-pagination-nav]');
+        const ul = root.querySelector('[data-log-pagination-ul]');
+        const selectWrap = root.querySelector('[data-log-pagination-select-wrap]');
+        const select = root.querySelector('[data-log-pagination-select]');
+
+        function goToPage(pageNum) {
+            const base = root.getAttribute('data-query-no-page') || '';
+            const p = new URLSearchParams(base);
+            p.set('page', String(pageNum));
+            const tail = p.toString();
+            window.location.href = tail ? '/admin/logs?' + tail : '/admin/logs?page=' + encodeURIComponent(pageNum);
+        }
+
+        if (select) {
+            select.addEventListener('change', () => {
+                goToPage(select.value);
+            });
+        }
+
+        function syncPaginationMode() {
+            if (!nav || !ul || !selectWrap) return;
+            nav.classList.remove('d-none');
+            selectWrap.classList.add('d-none');
+            selectWrap.classList.remove('d-flex');
+            const overflows = ul.scrollWidth > ul.clientWidth + 1;
+            if (overflows) {
+                nav.classList.add('d-none');
+                selectWrap.classList.remove('d-none');
+                selectWrap.classList.add('d-flex');
+            }
+        }
+
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncPaginationMode()) : null;
+        if (ro && root) ro.observe(root);
+        window.addEventListener('resize', syncPaginationMode);
+        syncPaginationMode();
+    })();
+</script>

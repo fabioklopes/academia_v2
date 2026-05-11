@@ -24,6 +24,9 @@
         <li><a class="dropdown-item" href="#"><i class="fa-solid fa-trophy"></i> Rankings internos</a></li>
         <li><a class="dropdown-item" href="/metasdeaula"><i class="fa-solid fa-award"></i> Meta de aulas</a></li>
         <li><a class="dropdown-item" href="/relatorios"><i class="fa-solid fa-chart-pie"></i> Relatórios</a></li>
+        {{#if isRoleADM}}
+        <li><a class="dropdown-item" href="/admin/logs"><i class="fa-solid fa-clipboard-list"></i> Log de atividades</a></li>
+        {{/if}}
 
         {{#if dependentes}}
         <li>

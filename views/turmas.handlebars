@@ -31,6 +31,45 @@
             max-height: 38vh;
         }
     }
+
+    .turma-alunos-pagination-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .turma-alunos-pagination-wrapper small {
+        text-align: center;
+    }
+
+    .turma-alunos-pagination-wrapper > * {
+        min-width: 0;
+    }
+
+    .turma-alunos-pagination-nav {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .turma-alunos-pagination-nav .pagination {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    @media (max-width: 768px) {
+        .turma-alunos-pagination-nav .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.85rem;
+        }
+    }
 </style>
 
     <button type="button" class="btn btn-primary btn-sm mb-3" data-bs-toggle="modal" data-bs-target="#modalNovaTurma">
@@ -230,6 +269,12 @@
                     <div class="turma-alunos-scroll">
                         <div id="turmaAlunosLista" class="list-group"></div>
                     </div>
+                    <div id="turmaAlunosPaginationWrap" class="turma-alunos-pagination-wrapper d-flex flex-column align-items-center gap-2 mt-3 d-none">
+                        <small class="text-body-secondary">Total de registros: <span id="turmaAlunosTotalItems">0</span></small>
+                        <nav class="turma-alunos-pagination-nav" aria-label="Paginação de alunos da turma">
+                            <ul class="pagination pagination-sm mb-0" id="turmaAlunosPaginationUl"></ul>
+                        </nav>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-danger" id="btnRemoverAlunosTurma">Remover Aluno(s)</button>
@@ -240,12 +285,9 @@
     </div>
 </div>
 
-<script id="alunosByTurmaData" type="application/json">{{{alunosByTurmaJSON}}}</script>
-
 <script>
 (() => {
     document.addEventListener('DOMContentLoaded', () => {
-    const alunosByTurma = JSON.parse(document.getElementById('alunosByTurmaData')?.textContent || '{}');
     const checkboxes = Array.from(document.querySelectorAll('.aluno-checkbox'));
     const selectedCount = document.getElementById('selectedCount');
     const selectedCountModal = document.getElementById('selectedCountModal');
@@ -266,6 +308,15 @@
     const turmaAlunosListaEl = document.getElementById('turmaAlunosLista');
     const removeClassCodeHidden = document.getElementById('removeClassCodeHidden');
     const btnRemoverAlunosTurma = document.getElementById('btnRemoverAlunosTurma');
+    const turmaAlunosPaginationWrap = document.getElementById('turmaAlunosPaginationWrap');
+    const turmaAlunosTotalItems = document.getElementById('turmaAlunosTotalItems');
+    const turmaAlunosPaginationUl = document.getElementById('turmaAlunosPaginationUl');
+
+    let turmaModalContext = {
+        classCode: '',
+        className: '',
+        canManage: false
+    };
 
     if (!formMatricular || !btnOpenEnrollModal || !modalEl) {
         return;
@@ -277,17 +328,16 @@
         if (selectedCountModal) selectedCountModal.textContent = String(count);
     }
 
-    function renderTurmaAlunosModal(classCode, className, canManage) {
+    function renderTurmaMatriculadosLista(alunos, canManage, totalItems) {
         if (!turmaAlunosListaEl || !turmaNomeEl || !removeClassCodeHidden) {
             return;
         }
 
-        const alunosDaTurma = Array.isArray(alunosByTurma[classCode]) ? alunosByTurma[classCode] : [];
-        turmaNomeEl.textContent = `${className} - ${alunosDaTurma.length} aluno(s) matriculado(s)`;
-        removeClassCodeHidden.value = classCode;
+        turmaNomeEl.textContent = `${turmaModalContext.className} — ${totalItems} aluno(s) matriculado(s)`;
+        removeClassCodeHidden.value = turmaModalContext.classCode;
         turmaAlunosListaEl.innerHTML = '';
 
-        if (alunosDaTurma.length === 0) {
+        if (!alunos.length) {
             turmaAlunosListaEl.innerHTML = '<div class="text-body-secondary small">Nenhum aluno matriculado nesta turma.</div>';
             if (btnRemoverAlunosTurma) {
                 btnRemoverAlunosTurma.disabled = true;
@@ -295,7 +345,7 @@
             return;
         }
 
-        alunosDaTurma.forEach((aluno) => {
+        alunos.forEach((aluno) => {
             const row = document.createElement('label');
             row.className = 'list-group-item d-flex align-items-center gap-2';
 
@@ -329,6 +379,97 @@
         }
     }
 
+    function renderTurmaMatriculadosPagination(pagination) {
+        if (!turmaAlunosPaginationWrap || !turmaAlunosTotalItems || !turmaAlunosPaginationUl) {
+            return;
+        }
+
+        turmaAlunosTotalItems.textContent = String(pagination.totalItems);
+        turmaAlunosPaginationUl.innerHTML = '';
+
+        if (pagination.totalItems === 0) {
+            turmaAlunosPaginationWrap.classList.add('d-none');
+            return;
+        }
+
+        turmaAlunosPaginationWrap.classList.remove('d-none');
+
+        const { classCode } = turmaModalContext;
+        const { className } = turmaModalContext;
+        const { canManage } = turmaModalContext;
+
+        const appendPageButton = (label, pageNum, disabled, isActive) => {
+            const li = document.createElement('li');
+            li.className = 'page-item';
+            if (disabled) {
+                li.classList.add('disabled');
+            }
+            if (isActive) {
+                li.classList.add('active');
+            }
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'page-link';
+            btn.textContent = label;
+            if (disabled || isActive) {
+                btn.disabled = true;
+            } else {
+                btn.addEventListener('click', () => {
+                    loadTurmaMatriculados(classCode, className, canManage, pageNum);
+                });
+            }
+            li.appendChild(btn);
+            turmaAlunosPaginationUl.appendChild(li);
+        };
+
+        appendPageButton('Anterior', pagination.prevPage, !pagination.hasPrev, false);
+
+        (pagination.pageNumbers || []).forEach((pn) => {
+            appendPageButton(String(pn.number), pn.number, false, !!pn.isCurrent);
+        });
+
+        appendPageButton('Próxima', pagination.nextPage, !pagination.hasNext, false);
+    }
+
+    async function loadTurmaMatriculados(classCode, className, canManage, page) {
+        if (!turmaAlunosListaEl || !turmaNomeEl || !removeClassCodeHidden) {
+            return;
+        }
+
+        turmaModalContext = { classCode, className, canManage };
+
+        turmaNomeEl.textContent = `${className} — carregando…`;
+        turmaAlunosListaEl.innerHTML = '<div class="text-body-secondary small">Carregando alunos…</div>';
+        if (turmaAlunosPaginationWrap) {
+            turmaAlunosPaginationWrap.classList.add('d-none');
+        }
+        if (btnRemoverAlunosTurma) {
+            btnRemoverAlunosTurma.disabled = true;
+        }
+
+        try {
+            const url = `/turmas/matriculados/${encodeURIComponent(classCode)}?page=${encodeURIComponent(String(page))}`;
+            const response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+                throw new Error(data.mensagem || 'Não foi possível carregar os alunos.');
+            }
+
+            renderTurmaMatriculadosLista(data.alunos || [], canManage, data.pagination ? data.pagination.totalItems : 0);
+            if (data.pagination) {
+                renderTurmaMatriculadosPagination(data.pagination);
+            }
+        } catch (err) {
+            turmaNomeEl.textContent = `${className}`;
+            turmaAlunosListaEl.innerHTML = `<div class="text-danger small">${err.message || 'Erro ao carregar.'}</div>`;
+            if (turmaAlunosPaginationWrap) {
+                turmaAlunosPaginationWrap.classList.add('d-none');
+            }
+        }
+    }
+
     if (turmaRows.length > 0 && turmaModalEl && window.bootstrap && bootstrap.Modal) {
         turmaRows.forEach((row) => {
             row.addEventListener('click', () => {
@@ -336,7 +477,7 @@
                 const className = row.getAttribute('data-class-name') || '';
                 const canManage = row.getAttribute('data-can-manage') === 'Y';
 
-                renderTurmaAlunosModal(classCode, className, canManage);
+                loadTurmaMatriculados(classCode, className, canManage, 1);
                 const bsTurmaModal = bootstrap.Modal.getOrCreateInstance(turmaModalEl);
                 bsTurmaModal.show();
             });

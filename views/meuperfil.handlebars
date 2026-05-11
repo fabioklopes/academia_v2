@@ -1,0 +1,391 @@
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <h1 class="h3 mb-4">Meu Perfil</h1>
+
+            {{#if mensagem}}
+                <div class="alert alert-{{#if (eq tipoMensagem 'danger')}}danger{{else}}{{#if (eq tipoMensagem 'success')}}success{{else}}info{{/if}}{{/if}} alert-dismissible fade show" role="alert">
+                    {{mensagem}}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+            {{/if}}
+
+            {{#if emailConfirmPreviewLink}}
+                <div class="alert alert-info small">
+                    <strong>Ambiente sem SMTP:</strong> use este link para simular o e-mail de confirmação:
+                    <a href="{{emailConfirmPreviewLink}}">{{emailConfirmPreviewLink}}</a>
+                </div>
+            {{/if}}
+
+            <div id="meuperfilAlert" class="alert d-none" role="alert"></div>
+
+            <div class="accordion shadow-sm" id="accordionPerfil">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingDados">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDados" aria-expanded="false" aria-controls="collapseDados">
+                            <span class="badge text-bg-primary me-2"><i class="fa-solid fa-address-card" aria-hidden="true"></i></span>
+                            <b>Dados Pessoais</b>
+                        </button>
+                    </h2>
+                    <div id="collapseDados" class="accordion-collapse collapse" data-bs-parent="#accordionPerfil" aria-labelledby="headingDados">
+                        <div class="accordion-body">
+                            <form id="formDadosPessoais" class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="mp_first_name">Primeiro nome</label>
+                                    <input type="text" class="form-control" id="mp_first_name" name="first_name" value="{{usuario.first_name}}" required maxlength="120">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="mp_last_name">Restante do nome</label>
+                                    <input type="text" class="form-control" id="mp_last_name" name="last_name" value="{{usuario.last_name}}" required maxlength="200">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="mp_phone">WhatsApp <span class="text-muted fw-normal">(apenas números)</span></label>
+                                    <input type="text" class="form-control" id="mp_phone" name="phone" value="{{usuario.phone}}" inputmode="numeric" autocomplete="tel" maxlength="11" required placeholder="11999999999" pattern="[0-9]{11}" title="Digite 11 números (DDD + celular), sem espaços ou símbolos.">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="mp_actual_belt">Faixa atual</label>
+                                    <select class="form-select" id="mp_actual_belt" name="actual_belt" required>
+                                        {{#each beltOptions}}
+                                            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                                        {{/each}}
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="mp_actual_degree">Grau atual</label>
+                                    <select class="form-select" id="mp_actual_degree" name="actual_degree" required>
+                                        {{#each degreeOptions}}
+                                            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                                        {{/each}}
+                                    </select>
+                                </div>
+                                <div class="col-12 text-center">
+                                    <button type="submit" class="btn btn-outline-primary">Salvar dados pessoais</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingMedidas">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMedidas" aria-expanded="false" aria-controls="collapseMedidas">
+                            <span class="badge text-bg-primary me-2"><i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i></span>
+                            <b>Minhas Medidas</b>
+                        </button>
+                    </h2>
+                    <div id="collapseMedidas" class="accordion-collapse collapse" data-bs-parent="#accordionPerfil" aria-labelledby="headingMedidas">
+                        <div class="accordion-body">
+                            <form id="formMedidas" class="row g-3"> 
+                                <div class="col-md-4">
+                                    <label class="form-label" for="mp_wagi">Tamanho da Jaqueta (Wagi)</label>
+                                    <select class="form-select" id="mp_wagi" name="wagi_size" required>
+                                        {{#each kimonoSizeOptions}}
+                                            <option value="{{code}}" {{#if (eq ../usuario.wagi_size code)}}selected{{/if}}>{{label}}</option>
+                                        {{/each}}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="mp_zubon">Tamanho da Calça (Zubon)</label>
+                                    <select class="form-select" id="mp_zubon" name="zubon_size" required>
+                                        {{#each kimonoSizeOptions}}
+                                            <option value="{{code}}" {{#if (eq ../usuario.zubon_size code)}}selected{{/if}}>{{label}}</option>
+                                        {{/each}}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="mp_obi">Tamanho da Faixa (Obi)</label>
+                                    <select class="form-select" id="mp_obi" name="obi_size" required>
+                                        {{#each obiSizeOptions}}
+                                            <option value="{{code}}" {{#if (eq ../usuario.obi_size code)}}selected{{/if}}>{{label}}</option>
+                                        {{/each}}
+                                    </select>
+                                </div>
+                                <div class="col-12 text-center">
+                                    <button type="submit" class="btn btn-outline-primary">Salvar medidas</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingSeg">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeg" aria-expanded="false" aria-controls="collapseSeg">
+                            <span class="badge text-bg-primary me-2"><i class="fa-solid fa-key" aria-hidden="true"></i></span>
+                            <b>Segurança e Login</b>
+                        </button>
+                    </h2>
+                    <div id="collapseSeg" class="accordion-collapse collapse" data-bs-parent="#accordionPerfil" aria-labelledby="headingSeg">
+                        <div class="accordion-body text-center">
+                            <p>Uma nova tela será exibida por segurança.</p>
+                            <button type="button" class="btn text-bg-danger" data-bs-toggle="modal" data-bs-target="#modalSegurancaRisco">
+                                Exibir tela segura
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalSegurancaRisco" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalSegurancaRiscoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="modalSegurancaRiscoLabel">
+                    <span class="badge text-bg-primary me-2"><i class="fa-solid fa-asterisk" aria-hidden="true"></i></span> Credenciais de acesso
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center text-bg-warning p-3 rounded-3 mb-3">
+                    <p>Caso não queira mudar a senha, deixe os campos em branco.</p>
+                </div>
+                <form id="formSegurancaLogin" class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="mp_login_email">E-mail (login)</label>
+                        <input type="email" class="form-control" id="mp_login_email" name="email" value="{{usuario.email}}" autocomplete="username" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="mp_new_pw">Nova senha</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control mp-pw-field" id="mp_new_pw" name="new_password" autocomplete="new-password" minlength="6">
+                            <button class="btn btn-outline-secondary mp-toggle-pw" type="button" title="Mostrar ou ocultar"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="mp_new_pw2">Repetir a nova senha</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control mp-pw-field" id="mp_new_pw2" name="new_password_confirm" autocomplete="new-password" minlength="6">
+                            <button class="btn btn-outline-secondary mp-toggle-pw" type="button" title="Mostrar ou ocultar"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-12 text-center">
+                        <button type="submit" class="btn btn-outline-primary">Salvar dados de acesso</button>
+                    </div>
+                </form>
+
+                <div id="mpEmailDependentesWarn" class="alert alert-warning mt-3 d-none align-items-start gap-2" role="alert">
+                    <div class="flex-grow-1">
+                        Se o novo e-mail for validado com sucesso, as contas dependentes à sua serão alteradas automaticamente.
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-dark flex-shrink-0" id="mpEmailDependentesWarnFechar">Fechar definitivamente</button>
+                </div>
+
+                {{#if usuario.pending_email}}
+                    <div class="mt-3 p-3 border rounded bg-body-tertiary">
+                        <p class="small mb-2">Alteração pendente para: <strong>{{usuario.pending_email}}</strong></p>
+                        <button type="button" id="btnConfirmarEmail" class="btn text-bg-primary w-100">CONFIRMAR ALTERAÇÃO DO E-MAIL</button>
+                        <p class="small text-body-secondary mt-2 mb-0">Ao confirmar, todas as sessões serão encerradas e você deverá entrar com o novo e-mail.</p>
+                    </div>
+                {{/if}}
+
+                <div id="mpEmailPreviewBox" class="alert alert-info small mt-3 d-none"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const titularTemDependentes = {{#if titularTemDependentesAtivos}}true{{else}}false{{/if}};
+    const titularStorageKey = 'meuperfil_aviso_dependentes_email_{{titularDismissStorageId}}';
+    const alertBox = document.getElementById('meuperfilAlert');
+
+    function showPageAlert(variant, text) {
+        if (!alertBox) return;
+        alertBox.className = 'alert alert-' + variant;
+        alertBox.textContent = text;
+        alertBox.classList.remove('d-none');
+    }
+
+    function wirePasswordToggles(root) {
+        (root || document).querySelectorAll('.mp-toggle-pw').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const wrap = btn.closest('.input-group');
+                const input = wrap ? wrap.querySelector('.mp-pw-field') : null;
+                if (!input) return;
+                const show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = show ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+                }
+            });
+        });
+    }
+
+    wirePasswordToggles(document);
+
+    const depWarn = document.getElementById('mpEmailDependentesWarn');
+    const depWarnBtn = document.getElementById('mpEmailDependentesWarnFechar');
+    const emailField = document.getElementById('mp_login_email');
+
+    function refreshDependentesWarning() {
+        if (!depWarn || !emailField) return;
+        if (!titularTemDependentes) {
+            depWarn.classList.add('d-none');
+            return;
+        }
+        if (localStorage.getItem(titularStorageKey) === '1') {
+            depWarn.classList.add('d-none');
+            return;
+        }
+        const original = ('{{usuario.email}}' || '').trim().toLowerCase();
+        if (emailField.value.trim().toLowerCase() !== original) {
+            depWarn.classList.remove('d-none');
+        } else {
+            depWarn.classList.add('d-none');
+        }
+    }
+
+    if (emailField) {
+        emailField.addEventListener('input', refreshDependentesWarning);
+        refreshDependentesWarning();
+    }
+
+    if (depWarnBtn) {
+        depWarnBtn.addEventListener('click', function () {
+            localStorage.setItem(titularStorageKey, '1');
+            if (depWarn) depWarn.classList.add('d-none');
+        });
+    }
+
+    const phoneField = document.getElementById('mp_phone');
+    function mpSanitizePhoneDigits(el) {
+        if (!el) return;
+        const only = el.value.replace(/\D/g, '').slice(0, 11);
+        if (el.value !== only) el.value = only;
+    }
+    if (phoneField) {
+        mpSanitizePhoneDigits(phoneField);
+        phoneField.addEventListener('input', function () {
+            mpSanitizePhoneDigits(phoneField);
+        });
+    }
+
+    function handleLogoutResponse(data) {
+        if (data.logout) {
+            window.location.href = '/auth/login';
+            return true;
+        }
+        return false;
+    }
+
+    async function postJson(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.ok) {
+            throw new Error(data.mensagem || 'Falha na requisição.');
+        }
+        return data;
+    }
+
+    function recarregarMeuPerfilAposSalvar(data) {
+        const params = new URLSearchParams();
+        params.set('mensagem', data.mensagem || 'Salvo com sucesso.');
+        params.set('tipo', 'success');
+        if (data.emailPreviewLink) {
+            params.set('email_preview_link', data.emailPreviewLink);
+        }
+        window.location.assign('/meuperfil?' + params.toString());
+    }
+
+    document.getElementById('formDadosPessoais')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+            if (phoneField) mpSanitizePhoneDigits(phoneField);
+            const fd = new FormData(this);
+            const body = Object.fromEntries(fd.entries());
+            const phoneVal = String(body.phone || '').trim();
+            if (!phoneVal) {
+                showPageAlert('danger', 'Informe o WhatsApp com DDD e 11 dígitos.');
+                return;
+            }
+            if (!/^\d+$/.test(phoneVal)) {
+                showPageAlert(
+                    'danger',
+                    'No WhatsApp, use apenas números, sem letras, espaços ou símbolos.'
+                );
+                return;
+            }
+            if (phoneVal.length !== 11) {
+                showPageAlert('danger', 'Informe o WhatsApp com DDD e 11 dígitos.');
+                return;
+            }
+            const data = await postJson('/meuperfil/dados-pessoais', body);
+            recarregarMeuPerfilAposSalvar(data);
+        } catch (err) {
+            showPageAlert('danger', err.message);
+        }
+    });
+
+    document.getElementById('formMedidas')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+            const fd = new FormData(this);
+            const body = Object.fromEntries(fd.entries());
+            const data = await postJson('/meuperfil/medidas', body);
+            recarregarMeuPerfilAposSalvar(data);
+        } catch (err) {
+            showPageAlert('danger', err.message);
+        }
+    });
+
+    document.getElementById('formSegurancaLogin')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const previewBox = document.getElementById('mpEmailPreviewBox');
+        if (previewBox) {
+            previewBox.classList.add('d-none');
+            previewBox.textContent = '';
+        }
+        try {
+            const fd = new FormData(this);
+            const body = Object.fromEntries(fd.entries());
+            const data = await postJson('/meuperfil/seguranca', body);
+            if (handleLogoutResponse(data)) return;
+            recarregarMeuPerfilAposSalvar(data);
+        } catch (err) {
+            showPageAlert('danger', err.message);
+        }
+    });
+
+    document.getElementById('btnConfirmarEmail')?.addEventListener('click', async function () {
+        if (!confirm('Confirma a alteração do e-mail? Você será desconectado de todas as sessões.')) {
+            return;
+        }
+        try {
+            const data = await postJson('/meuperfil/confirmar-email', {});
+            if (handleLogoutResponse(data)) return;
+            showPageAlert('success', data.mensagem || 'Concluído.');
+        } catch (err) {
+            showPageAlert('danger', err.message);
+        }
+    });
+
+    function atualizarGrausPorFaixa() {
+        const beltEl = document.getElementById('mp_actual_belt');
+        const degEl = document.getElementById('mp_actual_degree');
+        if (!beltEl || !degEl) return;
+        const belt = beltEl.value;
+        const max = belt === 'black' ? 6 : 4;
+        const atual = parseInt(degEl.value, 10);
+        degEl.innerHTML = '';
+        for (let i = 0; i <= max; i++) {
+            const opt = document.createElement('option');
+            opt.value = String(i);
+            opt.textContent = String(i);
+            degEl.appendChild(opt);
+        }
+        const usar = Number.isFinite(atual) && atual <= max ? atual : max;
+        degEl.value = String(usar);
+    }
+
+    document.getElementById('mp_actual_belt')?.addEventListener('change', atualizarGrausPorFaixa);
+})();
+</script>

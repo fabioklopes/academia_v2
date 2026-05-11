@@ -87,15 +87,15 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         }
     },
     wagi_size: {
-        type: db.Sequelize.CHAR(3),
+        type: db.Sequelize.STRING(4),
         allowNull: false,
     },
     zubon_size: {
-        type: db.Sequelize.CHAR(3),
+        type: db.Sequelize.STRING(4),
         allowNull: false,
     },
     obi_size: {
-        type: db.Sequelize.CHAR(2),
+        type: db.Sequelize.STRING(3),
         allowNull: false,
     },
     photo: {
@@ -131,6 +131,19 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         validate: {
             isIn: [['P', 'A', 'C']] // Validação extra
         }
+    },
+    /** Novo e-mail aguardando confirmação (troca de login) */
+    pending_email: {
+        type: db.Sequelize.STRING,
+        allowNull: true
+    },
+    email_change_token_hash: {
+        type: db.Sequelize.STRING,
+        allowNull: true
+    },
+    email_change_expires: {
+        type: db.Sequelize.DATE,
+        allowNull: true
     }
 });
 

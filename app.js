@@ -30,6 +30,7 @@ const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
 
+
 MetaAula.belongsTo(Usuario, {
     as: 'criador',
     foreignKey: 'created_by',
@@ -1068,6 +1069,70 @@ function normalizePersonName(value) {
         .join(' ');
 }
 
+const NAME_CONNECTIVES_LOWER = new Set(['do', 'dos', 'da', 'das', 'de', 'e']);
+
+function formatLastNameWithConnectives(value) {
+    const text = String(value || '').trim().replace(/\s+/g, ' ');
+    if (!text) {
+        return '';
+    }
+
+    return text
+        .split(' ')
+        .map((word) => {
+            const w = word.trim();
+            if (!w) {
+                return '';
+            }
+
+            const lower = w.toLocaleLowerCase('pt-BR');
+            if (NAME_CONNECTIVES_LOWER.has(lower)) {
+                return lower;
+            }
+
+            return lower.charAt(0).toLocaleUpperCase('pt-BR') + lower.slice(1);
+        })
+        .filter(Boolean)
+        .join(' ');
+}
+
+const EMAIL_CHANGE_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
+
+const KIMONO_WAGI_ZUBON_SIZE_OPTIONS = [
+    { code: 'M000', label: 'M000 — 0,90 m a 1,00 m' },
+    { code: 'M00', label: 'M00 — 1,00 m a 1,10 m' },
+    { code: 'M0', label: 'M0 — 1,10 m a 1,20 m' },
+    { code: 'M1', label: 'M1 — 1,20 m a 1,30 m' },
+    { code: 'M2', label: 'M2 — 1,30 m a 1,40 m' },
+    { code: 'M3', label: 'M3 — 1,40 m a 1,50 m' },
+    { code: 'M4', label: 'M4 — 1,50 m a 1,60 m' },
+    { code: 'A0', label: 'A0 — 1,55 m a 1,65 m / Até 65 kg' },
+    { code: 'A1', label: 'A1 — 1,65 m a 1,75 m / Até 75 kg' },
+    { code: 'A2', label: 'A2 — 1,75 m a 1,85 m / Até 85 kg' },
+    { code: 'A3', label: 'A3 — 1,85 m a 1,95 m / Até 95 kg' },
+    { code: 'A4', label: 'A4 — 1,95 m a 2,05 m / Até 105 kg' },
+    { code: 'A5', label: 'A5 — Acima de 2,05 m / Até 120 kg' },
+    { code: 'A6', label: 'A6 — Ultra-pesado / Acima de 120 kg' }
+];
+
+const OBI_SIZE_OPTIONS = [
+    { code: 'M0', label: 'M0 — 1,90 m' },
+    { code: 'M1', label: 'M1 — 2,00 m' },
+    { code: 'M2', label: 'M2 — 2,10 m' },
+    { code: 'M3', label: 'M3 — 2,20 m' },
+    { code: 'M4', label: 'M4 — 2,30 m' },
+    { code: 'A0', label: 'A0 — 2,45 m' },
+    { code: 'A1', label: 'A1 — 2,60 m' },
+    { code: 'A2', label: 'A2 — 2,85 m' },
+    { code: 'A3', label: 'A3 — 3,00 m' },
+    { code: 'A4', label: 'A4 — 3,15 m' },
+    { code: 'A5', label: 'A5 — 3,30 m' },
+    { code: 'A6', label: 'A6 — 3,45 m' }
+];
+
+const KIMONO_SIZE_CODES = new Set(KIMONO_WAGI_ZUBON_SIZE_OPTIONS.map((o) => o.code));
+const OBI_SIZE_CODES = new Set(OBI_SIZE_OPTIONS.map((o) => o.code));
+
 function getResetPasswordBaseUrl(req) {
     const configuredBaseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL;
     if (configuredBaseUrl) {
@@ -1084,6 +1149,71 @@ function buildResetPasswordLink(req, email, token) {
     });
 
     return `${getResetPasswordBaseUrl(req)}/auth/reset-password?${params.toString()}`;
+}
+
+function buildEmailChangeConfirmLink(req, email, token) {
+    const params = new URLSearchParams({
+        email,
+        token
+    });
+
+    return `${getResetPasswordBaseUrl(req)}/meuperfil/confirmar-email?${params.toString()}`;
+}
+
+async function sendProfileEmailChangeConfirmation(req, toEmail, token) {
+    const normalized = normalizeEmail(toEmail);
+    const link = buildEmailChangeConfirmLink(req, normalized, token);
+    const transportConfig = getPasswordResetTransportConfig();
+    const bodyIntro = 'Você está recebendo esta mensagem porque informou um novo e-mail para fazer login na aplicação CRTN Belém. Para confirmar a alteração clique no botão abaixo. Caso não tenha solicitado esta ação, basta ignorar esta mensagem.';
+
+    if (!transportConfig) {
+        console.info('[meuperfil] Confirmação de e-mail (SMTP não configurado). Link:', link);
+        return { deliveryStatus: 'preview', link };
+    }
+
+    const transporter = nodemailer.createTransport(transportConfig);
+    const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || transportConfig.auth.user;
+
+    await transporter.sendMail({
+        from,
+        to: normalized,
+        subject: 'Confirmar alteração de e-mail — CRTN Belém',
+        text: `${bodyIntro}\n\n${link}`,
+        html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #212529;">
+                <p>${bodyIntro}</p>
+                <p><a href="${link}">${link}</a></p>
+            </div>
+        `
+    });
+
+    return { deliveryStatus: 'sent', link };
+}
+
+function getEffectiveProfileUserId(req) {
+    if (!req.session.usuario) {
+        return null;
+    }
+
+    if (req.session.viewingAs && req.session.viewingAs.id) {
+        return req.session.viewingAs.id;
+    }
+
+    return req.session.usuario.id;
+}
+
+/** Meu Perfil: aluno (STD), professor (PRO) e administrador (ADM). */
+function requireMeuPerfilSession(req, res, next) {
+    if (!req.session.usuario) {
+        return res.redirect('/auth/login');
+    }
+
+    if (!['STD', 'PRO', 'ADM'].includes(req.session.usuario.role)) {
+        const mensagem = encodeURIComponent('Nível de acesso não autorizado para esta área.');
+        return res.redirect(`/dashboard?mensagem=${mensagem}`);
+    }
+
+    return next();
 }
 
 function getPasswordResetTransportConfig() {
@@ -3282,6 +3412,367 @@ app.get('/conta/trocar/:id', async (req, res) => {
 app.get('/conta/voltar', (req, res) => {
     req.session.viewingAs = null;
     return res.redirect('/dashboard');
+});
+
+async function findUsuariosWithValidEmailChangeToken(email, token) {
+    const norm = normalizeEmail(email);
+    if (!norm || !token) {
+        return [];
+    }
+
+    const candidatos = await Usuario.findAll({
+        where: { pending_email: norm }
+    });
+    const now = new Date();
+    const validos = [];
+
+    for (const usuario of candidatos) {
+        if (!usuario.email_change_token_hash || !usuario.email_change_expires) {
+            continue;
+        }
+
+        if (new Date(usuario.email_change_expires) < now) {
+            continue;
+        }
+
+        try {
+            if (await argon2.verify(usuario.email_change_token_hash, token)) {
+                validos.push(usuario);
+            }
+        } catch (_e) {
+            // token inválido
+        }
+    }
+
+    return validos;
+}
+
+async function applyConfirmedEmailChangeFromUsuarioRow(usuarioAlvo) {
+    const pending = normalizeEmail(usuarioAlvo.pending_email);
+    if (!pending) {
+        throw new Error('Nenhuma alteração de e-mail pendente para este usuário.');
+    }
+
+    const titular = usuarioAlvo.responsible_id
+        ? await Usuario.findByPk(usuarioAlvo.responsible_id)
+        : usuarioAlvo;
+
+    const baseUser = titular || usuarioAlvo;
+
+    await sequelize.transaction(async (transaction) => {
+        if (!usuarioAlvo.responsible_id) {
+            await Usuario.update(
+                {
+                    email: pending,
+                    pending_email: null,
+                    email_change_token_hash: null,
+                    email_change_expires: null
+                },
+                {
+                    where: {
+                        [Op.or]: [{ id: baseUser.id }, { responsible_id: baseUser.id }]
+                    },
+                    transaction
+                }
+            );
+        } else {
+            await usuarioAlvo.update(
+                {
+                    email: pending,
+                    pending_email: null,
+                    email_change_token_hash: null,
+                    email_change_expires: null
+                },
+                { transaction }
+            );
+        }
+    });
+}
+
+app.get('/meuperfil', requireMeuPerfilSession, async (req, res) => {
+    try {
+        const profileUserId = getEffectiveProfileUserId(req);
+        const usuario = await Usuario.findByPk(profileUserId);
+        if (!usuario) {
+            const mensagem = encodeURIComponent('Usuário não encontrado.');
+            return res.redirect(`/dashboard?mensagem=${mensagem}`);
+        }
+
+        const titularId = req.session.usuario.id;
+        const dependentesAtivos = await Usuario.count({
+            where: { responsible_id: titularId, user_status: 'A' }
+        });
+
+        const beltOptions = BELT_OPTIONS.map((option) => ({
+            ...option,
+            selected: option.value === usuario.actual_belt
+        }));
+
+        const maxDeg = getMaxDegreeForBelt(usuario.actual_belt);
+        const degreeOptions = Array.from({ length: maxDeg + 1 }, (_, d) => ({
+            value: String(d),
+            label: String(d),
+            selected: String(d) === String(usuario.actual_degree)
+        }));
+
+        return res.render('meuperfil', {
+            pageTitle: 'Meu Perfil',
+            usuario: usuario.get({ plain: true }),
+            beltOptions,
+            degreeOptions,
+            kimonoSizeOptions: KIMONO_WAGI_ZUBON_SIZE_OPTIONS,
+            obiSizeOptions: OBI_SIZE_OPTIONS,
+            titularTemDependentesAtivos: !req.session.viewingAs && dependentesAtivos > 0,
+            titularDismissStorageId: req.session.usuario.id,
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || '',
+            emailConfirmPreviewLink: req.query.email_preview_link || ''
+        });
+    } catch (err) {
+        console.error(err);
+        const mensagem = encodeURIComponent('Erro ao abrir Meu Perfil: ' + err.message);
+        return res.redirect(`/dashboard?mensagem=${mensagem}`);
+    }
+});
+
+app.post('/meuperfil/dados-pessoais', requireMeuPerfilSession, async (req, res) => {
+    try {
+        const profileUserId = getEffectiveProfileUserId(req);
+        const usuario = await Usuario.findByPk(profileUserId);
+        if (!usuario) {
+            return res.status(404).json({ ok: false, mensagem: 'Usuário não encontrado.' });
+        }
+
+        const firstName = normalizePersonName(req.body.first_name);
+        const lastName = formatLastNameWithConnectives(req.body.last_name);
+        const phoneRaw = String(req.body.phone || '').trim();
+        const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
+
+        if (!firstName || !lastName) {
+            return res.status(400).json({ ok: false, mensagem: 'Informe o primeiro nome e o restante do nome.' });
+        }
+
+        if (!phoneRaw) {
+            return res.status(400).json({ ok: false, mensagem: 'Informe o WhatsApp com DDD e 11 dígitos.' });
+        }
+
+        if (!/^\d+$/.test(phoneRaw)) {
+            return res.status(400).json({
+                ok: false,
+                mensagem: 'No WhatsApp, use apenas números, sem letras, espaços ou símbolos.'
+            });
+        }
+
+        const phoneDigits = phoneRaw;
+        if (phoneDigits.length !== 11) {
+            return res.status(400).json({ ok: false, mensagem: 'Informe o WhatsApp com DDD e 11 dígitos.' });
+        }
+
+        if (!beltDegreeValidation.isValid) {
+            return res.status(400).json({ ok: false, mensagem: beltDegreeValidation.message });
+        }
+
+        usuario.first_name = firstName;
+        usuario.last_name = lastName;
+        usuario.phone = phoneDigits;
+        usuario.actual_belt = beltDegreeValidation.beltValue;
+        usuario.actual_degree = beltDegreeValidation.degreeValue;
+        await usuario.save();
+
+        if (req.session.usuario.id === usuario.id && !req.session.viewingAs) {
+            req.session.usuario.first_name = usuario.first_name;
+            req.session.usuario.last_name = usuario.last_name;
+        }
+
+        if (req.session.viewingAs && req.session.viewingAs.id === usuario.id) {
+            req.session.viewingAs.first_name = usuario.first_name;
+            req.session.viewingAs.last_name = usuario.last_name;
+        }
+
+        return res.json({ ok: true, mensagem: 'Dados pessoais salvos com sucesso.' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao salvar.' });
+    }
+});
+
+app.post('/meuperfil/medidas', requireMeuPerfilSession, async (req, res) => {
+    try {
+        const profileUserId = getEffectiveProfileUserId(req);
+        const usuario = await Usuario.findByPk(profileUserId);
+        if (!usuario) {
+            return res.status(404).json({ ok: false, mensagem: 'Usuário não encontrado.' });
+        }
+
+        const wagi = String(req.body.wagi_size || '').trim().toUpperCase();
+        const zubon = String(req.body.zubon_size || '').trim().toUpperCase();
+        const obi = String(req.body.obi_size || '').trim().toUpperCase();
+
+        if (!KIMONO_SIZE_CODES.has(wagi) || !KIMONO_SIZE_CODES.has(zubon)) {
+            return res.status(400).json({ ok: false, mensagem: 'Selecione tamanhos válidos para Wagi e Zubon.' });
+        }
+
+        if (!OBI_SIZE_CODES.has(obi)) {
+            return res.status(400).json({ ok: false, mensagem: 'Selecione um tamanho válido para a faixa (Obi).' });
+        }
+
+        usuario.wagi_size = wagi;
+        usuario.zubon_size = zubon;
+        usuario.obi_size = obi;
+        await usuario.save();
+
+        return res.json({ ok: true, mensagem: 'Medidas salvas com sucesso.' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao salvar.' });
+    }
+});
+
+app.post('/meuperfil/seguranca', requireMeuPerfilSession, async (req, res) => {
+    try {
+        const profileUserId = getEffectiveProfileUserId(req);
+        const usuario = await Usuario.findByPk(profileUserId);
+        if (!usuario) {
+            return res.status(404).json({ ok: false, mensagem: 'Usuário não encontrado.' });
+        }
+
+        const currentEmailNorm = normalizeEmail(usuario.email);
+        const emailInput = normalizeEmail(req.body.email);
+        const newPassword = String(req.body.new_password || '');
+        const newPassword2 = String(req.body.new_password_confirm || '');
+
+        if (!emailInput) {
+            return res.status(400).json({ ok: false, mensagem: 'Informe o e-mail de login.' });
+        }
+
+        let logoutRequired = false;
+        const responseExtras = {};
+        let emailChangeRequested = false;
+
+        if (newPassword || newPassword2) {
+            if (!newPassword || !newPassword2) {
+                return res.status(400).json({ ok: false, mensagem: 'Preencha a nova senha e a confirmação, ou deixe ambos em branco.' });
+            }
+
+            if (newPassword.length < 6) {
+                return res.status(400).json({ ok: false, mensagem: 'A nova senha deve ter pelo menos 6 caracteres.' });
+            }
+
+            if (newPassword !== newPassword2) {
+                return res.status(400).json({ ok: false, mensagem: 'A confirmação da nova senha não confere.' });
+            }
+
+            const mesmaSenha = await argon2.verify(usuario.password, newPassword).catch(() => false);
+            if (mesmaSenha) {
+                return res.status(400).json({ ok: false, mensagem: 'A nova senha não pode ser igual à senha atual.' });
+            }
+
+            usuario.password = await argon2.hash(newPassword);
+            await usuario.save();
+            logoutRequired = true;
+        }
+
+        if (emailInput !== currentEmailNorm) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+                return res.status(400).json({ ok: false, mensagem: 'Informe um e-mail válido para o novo login.' });
+            }
+
+            const token = crypto.randomBytes(32).toString('hex');
+            const tokenHash = await argon2.hash(token);
+            usuario.pending_email = emailInput;
+            usuario.email_change_token_hash = tokenHash;
+            usuario.email_change_expires = new Date(Date.now() + EMAIL_CHANGE_TOKEN_TTL_MS);
+            await usuario.save();
+            emailChangeRequested = true;
+
+            const mailResult = await sendProfileEmailChangeConfirmation(req, emailInput, token);
+            if (mailResult.deliveryStatus === 'preview') {
+                responseExtras.emailPreviewLink = mailResult.link;
+            }
+        }
+
+        if (logoutRequired) {
+            let msg = 'Senha alterada. Faça login novamente com a nova senha.';
+            if (emailChangeRequested) {
+                msg += ' Há também uma alteração de e-mail pendente de confirmação no novo endereço.';
+            }
+
+            return res.json({
+                ok: true,
+                mensagem: msg,
+                logout: true,
+                ...responseExtras
+            });
+        }
+
+        return res.json({
+            ok: true,
+            mensagem: emailChangeRequested
+                ? 'Enviamos um e-mail para o novo endereço com o link de confirmação. Use também o botão de confirmação nesta página após validar o e-mail.'
+                : 'Nenhuma alteração de senha ou e-mail aplicada.',
+            ...responseExtras
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao salvar.' });
+    }
+});
+
+app.post('/meuperfil/confirmar-email', requireMeuPerfilSession, async (req, res) => {
+    try {
+        const profileUserId = getEffectiveProfileUserId(req);
+        const usuario = await Usuario.findByPk(profileUserId);
+        if (!usuario || !usuario.pending_email) {
+            return res.status(400).json({ ok: false, mensagem: 'Não há alteração de e-mail pendente para confirmar.' });
+        }
+
+        await applyConfirmedEmailChangeFromUsuarioRow(usuario);
+
+        return req.session.destroy(() => {
+            res.clearCookie('oss.sid');
+            return res.json({
+                ok: true,
+                mensagem: 'E-mail atualizado. Faça login com o novo endereço.',
+                logout: true
+            });
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao confirmar e-mail.' });
+    }
+});
+
+app.get('/meuperfil/confirmar-email', async (req, res) => {
+    const email = normalizeEmail(req.query.email);
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+
+    try {
+        const validos = await findUsuariosWithValidEmailChangeToken(email, token);
+        if (validos.length === 0) {
+            const mensagem = encodeURIComponent('Link inválido ou expirado. Solicite novamente a alteração de e-mail em Meu Perfil.');
+            return res.redirect(`/auth/login?erro=${mensagem}`);
+        }
+
+        await applyConfirmedEmailChangeFromUsuarioRow(validos[0]);
+
+        const finish = () => {
+            const mensagem = encodeURIComponent('E-mail confirmado. Faça login com o novo endereço.');
+            return res.redirect(`/auth/login?aviso=${mensagem}`);
+        };
+
+        if (req.session && req.session.usuario) {
+            return req.session.destroy(() => {
+                res.clearCookie('oss.sid');
+                return finish();
+            });
+        }
+
+        return finish();
+    } catch (err) {
+        console.error(err);
+        const mensagem = encodeURIComponent('Erro ao confirmar e-mail: ' + err.message);
+        return res.redirect(`/auth/login?erro=${mensagem}`);
+    }
 });
 
 app.get('/aluno/novo', async (req, res) => {

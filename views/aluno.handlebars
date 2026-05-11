@@ -18,11 +18,6 @@
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
     <h1 class="mb-0">Página Aluno</h1>
-    {{#if hasProfessorPrivileges}}
-        <a href="/metasdeaula?openNovaMeta=1" class="btn btn-primary">
-            <i class="fa-solid fa-plus"></i> Nova Meta
-        </a>
-    {{/if}}
 </div>
 <style>
     .aluno-avatar {
@@ -109,10 +104,106 @@
         background-color: var(--bs-danger);
         border-color: var(--bs-danger);
     }
+
+    #alunoModal .aluno-modal-avatar-btn {
+        line-height: 0;
+        border-radius: 50%;
+        cursor: zoom-in;
+        transition: box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    #alunoModal .aluno-modal-avatar-btn:hover {
+        box-shadow: 0 0 0 4px var(--bs-primary-bg-subtle);
+    }
+
+    #alunoModal .aluno-modal-avatar-btn:focus-visible {
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
+    }
+
+    #alunoModal .aluno-modal-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--bs-border-color-translucent);
+        display: block;
+    }
+
+    .aluno-avatar-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.82);
+        cursor: zoom-out;
+    }
+
+    .aluno-avatar-lightbox.is-open {
+        display: flex;
+    }
+
+    .aluno-avatar-lightbox img {
+        max-width: min(100%, 90vw);
+        max-height: min(90vh, 900px);
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        border-radius: 0.5rem;
+        cursor: default;
+        box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.35);
+    }
+
+    .aluno-avatar-lightbox-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 2.5rem;
+        height: 2.5rem;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        font-size: 1.5rem;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .aluno-avatar-lightbox-close:hover {
+        background: rgba(255, 255, 255, 0.28);
+    }
+
+    .aluno-novo-badge {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        animation: pulseAlunoNovoBadge 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulseAlunoNovoBadge {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.55);
+        }
+        70% {
+            transform: scale(1.08);
+            box-shadow: 0 0 0 8px rgba(255, 193, 7, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+        }
+    }
 </style>
 
 <form id="alunoSearchForm" method="GET" action="/aluno" class="mb-3">
-    <label for="alunoSearchInput" class="form-label">Buscar aluno</label>
     <input
         type="text"
         id="alunoSearchInput"
@@ -180,6 +271,9 @@
                     >
                         <img src="{{photo}}" alt="Avatar de {{first_name}} {{last_name}}" class="aluno-avatar">
                         <span>{{first_name}} {{last_name}}</span>
+                        {{#if can_approve}}
+                            <span class="badge bg-warning text-dark aluno-novo-badge ms-1" aria-label="Aluno pendente de aprovação">Novo</span>
+                        {{/if}}
                     </button>
                 </td>
             </tr>
@@ -227,12 +321,19 @@
 
             <div class="modal-body">
                 <div class="modal-scroll-interno pe-1">
-                    <div class="d-flex align-items-center gap-3 mb-3">
-                        <img id="modalAlunoPhoto" src="/uploads/users/default.jpg" alt="Avatar do aluno" class="aluno-avatar">
-                        <div>
-                            <div class="fw-semibold" id="modalAlunoNome">-</div>
-                            <small class="text-body-secondary" id="modalAlunoEmail">-</small>
+                    <div class="text-center mb-3">
+                        <div class="d-flex justify-content-center mb-2">
+                            <button
+                                type="button"
+                                class="aluno-modal-avatar-btn btn p-0 border-0 bg-transparent"
+                                id="modalAlunoPhotoBtn"
+                                aria-label="Ampliar foto do aluno"
+                            >
+                                <img id="modalAlunoPhoto" src="/uploads/users/default.jpg" alt="Avatar do aluno" class="aluno-modal-avatar">
+                            </button>
                         </div>
+                        <h4 class="mb-2 text-center" id="modalAlunoNome">-</h4>
+                        <small class="text-body-secondary d-block text-center" id="modalAlunoEmail">-</small>
                     </div>
 
                     <div class="row g-2">
@@ -305,6 +406,11 @@
     </div>
 </div>
 
+<div id="alunoAvatarLightbox" class="aluno-avatar-lightbox" role="dialog" aria-modal="true" aria-hidden="true">
+    <button type="button" class="aluno-avatar-lightbox-close" aria-label="Fechar ampliação">&times;</button>
+    <img id="alunoAvatarLightboxImg" src="" alt="">
+</div>
+
 <!-- Modal do Responsável -->
 <div class="modal fade" id="responsibleModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="responsibleModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -374,6 +480,52 @@
         if (!modal) {
             return;
         }
+
+        const avatarLightbox = document.getElementById('alunoAvatarLightbox');
+        const avatarLightboxImg = document.getElementById('alunoAvatarLightboxImg');
+        const avatarLightboxBtn = document.getElementById('modalAlunoPhotoBtn');
+
+        function closeAlunoAvatarLightbox() {
+            if (!avatarLightbox) {
+                return;
+            }
+            avatarLightbox.classList.remove('is-open');
+            avatarLightbox.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+        }
+
+        function openAlunoAvatarLightbox() {
+            const photo = document.getElementById('modalAlunoPhoto');
+            if (!avatarLightbox || !avatarLightboxImg || !photo || !photo.getAttribute('src')) {
+                return;
+            }
+            avatarLightboxImg.src = photo.currentSrc || photo.src;
+            avatarLightboxImg.alt = photo.alt || 'Foto do aluno';
+            avatarLightbox.classList.add('is-open');
+            avatarLightbox.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        if (avatarLightboxBtn) {
+            avatarLightboxBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                openAlunoAvatarLightbox();
+            });
+        }
+
+        if (avatarLightbox) {
+            avatarLightbox.addEventListener('click', function(e) {
+                if (e.target === avatarLightbox || (e.target && e.target.closest && e.target.closest('.aluno-avatar-lightbox-close'))) {
+                    closeAlunoAvatarLightbox();
+                }
+            });
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && avatarLightbox && avatarLightbox.classList.contains('is-open')) {
+                closeAlunoAvatarLightbox();
+            }
+        });
 
         let lastTrigger = null;
 
@@ -523,6 +675,7 @@
         });
 
         modal.addEventListener('hidden.bs.modal', function() {
+            closeAlunoAvatarLightbox();
             if (lastTrigger && document.contains(lastTrigger) && typeof lastTrigger.focus === 'function') {
                 lastTrigger.focus();
             }
@@ -622,6 +775,7 @@
                 }
             });
         }
+
     })();
 
     // Modal do responsável

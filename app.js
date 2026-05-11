@@ -332,7 +332,7 @@ function resolveLocalUploadFile(photoPath) {
 async function fetchAllStudentsForReports() {
     const usuarios = await Usuario.findAll({
         where: { role: 'STD' },
-        attributes: ['id', 'user_code', 'first_name', 'last_name', 'photo', 'birth_date', 'actual_belt', 'actual_degree', 'user_status'],
+        attributes: ['id', 'user_code', 'first_name', 'last_name', 'photo', 'birth_date', 'actual_belt', 'actual_degree', 'user_status', 'obi_size'],
         order: [['first_name', 'ASC'], ['last_name', 'ASC']]
     });
 
@@ -427,41 +427,59 @@ function exportStudentsToPdf(res, filename, title, rows, options = {}) {
     let y = doc.y;
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
+    const uppercaseColumns = options.uppercaseColumns === true;
+    const nameNoWrap = options.nameNoWrap === true;
+
     const colAvatar = options.includeAvatar ? 34 : 0;
     const colStatus = options.includeStatus ? 70 : 0;
-    const colBelt = options.includeBelt ? 150 : 0;
-    const colDegree = options.includeDegree ? (options.degreeColWidth ? Number(options.degreeColWidth) : 90) : 0;
+    const colBelt = options.includeBelt ? (options.beltColWidth ? Number(options.beltColWidth) : 150) : 0;
+    const colDegree = options.includeDegree ? (options.degreeColWidth ? Number(options.degreeColWidth) : 100) : 0;
+    const colBeltSize = options.includeBeltSize ? (options.beltSizeColWidth ? Number(options.beltSizeColWidth) : 90) : 0;
     const colTotal = options.includeTotal ? (options.totalColWidth ? Number(options.totalColWidth) : 60) : 0;
-    const colName = pageWidth - colAvatar - colStatus - colBelt - colDegree - colTotal;
+    const colName = pageWidth - colAvatar - colStatus - colBelt - colDegree - colBeltSize - colTotal;
 
     const headerHeight = 20;
     const rowHeight = options.includeAvatar ? 34 : 22;
 
     function drawHeader() {
+        const labelAvatar = uppercaseColumns ? '' : '';
+        const labelName = uppercaseColumns ? 'NOME COMPLETO' : 'Nome completo';
+        const labelTotal = uppercaseColumns ? 'TOTAL' : 'Total';
+        const labelBelt = uppercaseColumns ? 'FAIXA' : 'Faixa';
+        const labelDegree = uppercaseColumns ? 'GRAU' : 'Grau';
+        const labelBeltSize = uppercaseColumns ? 'TAMANHO' : 'Tamanho';
+        const labelStatus = uppercaseColumns ? 'STATUS' : 'Status';
+
         doc.rect(startX, y, pageWidth, headerHeight).fill('#f2f2f2');
-        doc.fillColor('#000').fontSize(10);
+        doc.fillColor('#000').fontSize(10).font('Helvetica-Bold');
+        const headerTextY = y + Math.max(0, Math.round((headerHeight - 10) / 2));
         let x = startX;
         if (options.includeAvatar) {
-            doc.text('Avatar', x + 4, y + 6, { width: colAvatar - 8 });
+            doc.text(labelAvatar, x + 4, headerTextY, { width: colAvatar - 8, align: 'center', lineBreak: false, ellipsis: true });
             x += colAvatar;
         }
-        doc.text('Nome completo', x + 4, y + 6, { width: colName - 8 });
+        doc.text(labelName, x + 4, headerTextY, { width: colName - 8, align: 'center', lineBreak: false, ellipsis: true });
         x += colName;
         if (options.includeTotal) {
-            doc.text('Total', x + 4, y + 6, { width: colTotal - 8, align: 'right' });
+            doc.text(labelTotal, x + 4, headerTextY, { width: colTotal - 8, align: 'center', lineBreak: false, ellipsis: true });
             x += colTotal;
         }
         if (options.includeBelt) {
-            doc.text('Faixa', x + 4, y + 6, { width: colBelt - 8 });
+            doc.text(labelBelt, x + 4, headerTextY, { width: colBelt - 8, align: 'center', lineBreak: false, ellipsis: true });
             x += colBelt;
         }
         if (options.includeDegree) {
-            doc.text('Grau', x + 4, y + 6, { width: colDegree - 8, align: 'right' });
+            doc.text(labelDegree, x + 4, headerTextY, { width: colDegree - 8, align: 'center', lineBreak: false, ellipsis: true });
             x += colDegree;
         }
-        if (options.includeStatus) {
-            doc.text('Status', x + 4, y + 6, { width: colStatus - 8, align: 'right' });
+        if (options.includeBeltSize) {
+            doc.text(labelBeltSize, x + 4, headerTextY, { width: colBeltSize - 8, align: 'center', lineBreak: false, ellipsis: true });
+            x += colBeltSize;
         }
+        if (options.includeStatus) {
+            doc.text(labelStatus, x + 4, headerTextY, { width: colStatus - 8, align: 'center', lineBreak: false, ellipsis: true });
+        }
+        doc.font('Helvetica');
         y += headerHeight;
     }
 
@@ -480,6 +498,7 @@ function exportStudentsToPdf(res, filename, title, rows, options = {}) {
     rows.forEach((r) => {
         ensureSpaceForRow();
         let x = startX;
+        const middleTextY = y + Math.max(0, Math.round((rowHeight - 10) / 2));
         // manter apenas uma linha fina no rodapé
         doc
             .strokeColor('#c0c0c0')
@@ -501,7 +520,12 @@ function exportStudentsToPdf(res, filename, title, rows, options = {}) {
         }
 
         const nameTopY = y + (options.includeAvatar ? 6 : 6);
-        doc.fillColor('#000').text(String(r.full_name || '-'), x + 4, nameTopY, { width: colName - 8 });
+        const nameY = (nameNoWrap && !options.includeNameNote) ? middleTextY : nameTopY;
+        doc.fillColor('#000').text(String(r.full_name || '-'), x + 4, nameY, {
+            width: colName - 8,
+            lineBreak: !nameNoWrap,
+            ellipsis: true
+        });
         if (options.includeNameNote) {
             const note = String(r.belt_summary_label || '').trim();
             if (note) {
@@ -518,13 +542,18 @@ function exportStudentsToPdf(res, filename, title, rows, options = {}) {
         }
 
         if (options.includeBelt) {
-            doc.fillColor('#333').text(String(r.belt_label || '-'), x + 4, y + 8, { width: colBelt - 8 });
+            doc.fillColor('#333').text(String(r.belt_label || '-'), x + 4, middleTextY, { width: colBelt - 8, align: 'center', lineBreak: false, ellipsis: true });
             x += colBelt;
         }
 
         if (options.includeDegree) {
-            doc.fillColor('#333').text(String(r.degree_label || '-'), x + 4, y + 8, { width: colDegree - 8, align: 'right' });
+            doc.fillColor('#333').text(String(r.degree_label || '-'), x + 4, middleTextY, { width: colDegree - 8, align: 'center', lineBreak: false, ellipsis: true });
             x += colDegree;
+        }
+
+        if (options.includeBeltSize) {
+            doc.fillColor('#333').text(String(r.obi_size || '-'), x + 4, middleTextY, { width: colBeltSize - 8, align: 'center', lineBreak: false, ellipsis: true });
+            x += colBeltSize;
         }
 
         if (options.includeStatus) {
@@ -4233,6 +4262,11 @@ app.get('/relatorios/faixas', async (req, res) => {
             if (groupDiff !== 0) return groupDiff;
             return a.sort_key.localeCompare(b.sort_key);
         });
+
+        alunos.forEach((a) => {
+            const tam = String(a.obi_size || '').trim();
+            a.belt_summary_label_with_size = tam ? `${a.belt_summary_label} (Tam. ${tam})` : a.belt_summary_label;
+        });
         return res.render('relatorios_faixas', { alunos });
     } catch (err) {
         const vm = getErrorViewModel(500);
@@ -4262,23 +4296,29 @@ app.get('/relatorios/faixas/download', async (req, res) => {
     if (format === 'xlsx') {
         return exportStudentsToXlsx(res, baseName, alunos.map((a) => ({
             nome: a.full_name,
-            faixa: a.belt_label,
-            grau: a.degree_label,
-            status: a.is_active ? 'Ativo' : 'Inativo'
+            faixa_atual: a.belt_label,
+            graus: a.degree_label,
+            tamanho_faixa: a.obi_size || ''
         })), [
-            { header: 'Nome completo', key: 'nome', width: 34 },
-            { header: 'Faixa', key: 'faixa', width: 18 },
-            { header: 'Grau', key: 'grau', width: 14 },
-            { header: 'Status', key: 'status', width: 12 }
+            { header: 'NOME COMPLETO', key: 'nome', width: 34 },
+            { header: 'FAIXA ATUAL', key: 'faixa_atual', width: 18 },
+            { header: 'GRAUS', key: 'graus', width: 14 },
+            { header: 'TAMANHO DE FAIXA', key: 'tamanho_faixa', width: 18 }
         ]);
     }
 
     return exportStudentsToPdf(res, baseName, 'Lista de alunos por faixas', alunos, {
         includeAvatar: true,
         includeStatus: false,
-        includeBelt: false,
-        includeDegree: false,
-        includeNameNote: true,
+        includeBelt: true,
+        includeDegree: true,
+        includeBeltSize: true,
+        includeNameNote: false,
+        uppercaseColumns: true,
+        nameNoWrap: true,
+        beltColWidth: 90,
+        degreeColWidth: 60,
+        beltSizeColWidth: 70,
         headerTitle: 'LISTA DE ALUNOS POR FAIXA',
         headerUppercaseTitle: true,
         headerTitleAlign: 'center',

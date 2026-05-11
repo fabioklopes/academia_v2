@@ -6,7 +6,6 @@ const app = express();
 
 const { engine } = require('express-handlebars');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const multer = require('multer');
 const fs = require('fs');
@@ -15,7 +14,7 @@ const sharp = require('sharp');
 const argon2 = require('argon2');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const moment = require('moment');
 const Usuario = require('./models/Usuario');
 const Presenca = require('./models/Presenca');
@@ -26,6 +25,7 @@ const MensagemProfessorOcultacao = require('./models/MensagemProfessorOcultacao'
 const MensagemProfessorLeitura = require('./models/MensagemProfessorLeitura');
 const MetaAula = require('./models/MetaAula');
 const MetaAulaTurma = require('./models/MetaAulaTurma');
+const AppActivityLog = require('./models/AppActivityLog');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -109,12 +109,6 @@ if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
 app.use(helmet({
     contentSecurityPolicy: false
 }));
-app.use(rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 300,
-    standardHeaders: true,
-    legacyHeaders: false
-}));
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -132,6 +126,65 @@ app.use(session({
         maxAge: 1000 * 60 * 60 * 8
     }
 }));
+
+const APP_ACTIVITY_LOG_ACTIONS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'UPDATE']);
+
+function shouldSkipAppActivityLog(req) {
+    const p = req.path || '';
+    if (p.startsWith('/uploads') || p.startsWith('/css') || p.startsWith('/js') || p.startsWith('/img')) {
+        return true;
+    }
+    if (p === '/favicon.ico') {
+        return true;
+    }
+    const lower = p.toLowerCase();
+    if (/\.(css|js|ico|map|woff2?|ttf|eot|svg|png|jpe?g|gif|webp)$/i.test(lower)) {
+        return true;
+    }
+    return false;
+}
+
+function normalizeAppActivityAction(method) {
+    const m = String(method || 'GET').toUpperCase();
+    if (APP_ACTIVITY_LOG_ACTIONS.has(m)) {
+        return m;
+    }
+    return 'GET';
+}
+
+app.use((req, res, next) => {
+    if (shouldSkipAppActivityLog(req)) {
+        return next();
+    }
+    const m = String(req.method || '').toUpperCase();
+    if (m === 'OPTIONS' || m === 'HEAD') {
+        return next();
+    }
+
+    res.on('finish', () => {
+        const statusCode = Number(res.statusCode) || 500;
+        const status = statusCode >= 400 ? 'FALHA' : 'SUCESSO';
+        let userCode = null;
+        if (req.session && req.session.usuario && req.session.usuario.user_code) {
+            userCode = String(req.session.usuario.user_code).trim().substring(0, 5) || null;
+        }
+        let endpoint = String(req.originalUrl || req.url || '/').split('?')[0];
+        if (endpoint.length > 500) {
+            endpoint = endpoint.slice(0, 500);
+        }
+        const action = normalizeAppActivityAction(req.method);
+        void AppActivityLog.create({
+            user_code: userCode,
+            action,
+            endpoint,
+            status
+        }).catch((err) => {
+            console.error('Erro ao registrar log de atividade:', err.message);
+        });
+    });
+
+    next();
+});
 
 // Carrega na seção a informação do Portal
 app.use((req, res, next) => {
@@ -239,6 +292,29 @@ app.use(requireAuth);
 // Equiparação de acesso para professor e administrador
 function hasProfessorAccess(usuarioSessao) {
     return !!usuarioSessao && ['PRO', 'ADM'].includes(usuarioSessao.role);
+}
+
+/** Mesma lógica de blocos numéricos usada em `/aluno` e `/presenca`. */
+function buildPaginationVm(currentPageRequested, totalItems, itemsPerPage, pagesPerBlock) {
+    const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+    const currentPage = Math.min(Math.max(1, currentPageRequested), totalPages);
+    const startPage = Math.floor((currentPage - 1) / pagesPerBlock) * pagesPerBlock + 1;
+    const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
+    const visiblePages = endPage - startPage + 1;
+    const pageNumbers = Array.from({ length: visiblePages }, (_unused, index) => {
+        const pageNumber = startPage + index;
+        return { number: pageNumber, isCurrent: pageNumber === currentPage };
+    });
+    return {
+        currentPage,
+        totalPages,
+        totalItems,
+        hasPrev: currentPage > 1,
+        hasNext: currentPage < totalPages,
+        prevPage: currentPage > 1 ? currentPage - 1 : 1,
+        nextPage: currentPage < totalPages ? currentPage + 1 : totalPages,
+        pageNumbers
+    };
 }
 
 function formatDateBrFromYmd(ymd) {
@@ -363,6 +439,14 @@ async function fetchAllStudentsForReports() {
 
 function ensureProfessorRoute(req, res) {
     if (!hasProfessorAccess(req.session.usuario)) {
+        const vm = getErrorViewModel(403);
+        return res.status(403).render('errors/error', vm);
+    }
+    return null;
+}
+
+function ensureAdminRoute(req, res) {
+    if (!req.session.usuario || req.session.usuario.role !== 'ADM') {
         const vm = getErrorViewModel(403);
         return res.status(403).render('errors/error', vm);
     }
@@ -2847,32 +2931,50 @@ app.get('/turmas', async (req, res) => {
             order: [['class_name', 'ASC']]
         });
 
-        const activeClassCodes = turmas.map(t => t.class_code);
-        const enrolledUserCodes = activeClassCodes.length > 0
-            ? await TurmaAluno.findAll({
-                where: { class_code: { [Op.in]: activeClassCodes }, active: 'Y' },
-                attributes: ['user_code'],
-                group: ['user_code']
-            }).then(results => results.map(r => r.user_code))
-            : [];
+        const activeClassCodes = turmas.map((t) => t.class_code);
 
-        const matriculas = await TurmaAluno.findAll({
-            where: { active: 'Y' },
-            attributes: ['class_code']
-        });
+        let countByClassCode = {};
+        let enrolledUserCodes = [];
+        if (activeClassCodes.length > 0) {
+            const countRows = await sequelize.query(
+                `SELECT ta.class_code AS class_code, COUNT(*) AS cnt
+                 FROM tb_turma_alunos ta
+                 INNER JOIN tb_usuarios u ON u.user_code = ta.user_code
+                 WHERE ta.active = 'Y'
+                   AND ta.class_code IN (:codes)
+                   AND u.role = 'STD'
+                   AND u.user_status = 'A'
+                 GROUP BY ta.class_code`,
+                { replacements: { codes: activeClassCodes }, type: QueryTypes.SELECT }
+            );
+            countByClassCode = countRows.reduce((acc, row) => {
+                acc[row.class_code] = Number(row.cnt);
+                return acc;
+            }, {});
 
-        const countByClassCode = matriculas.reduce((acc, item) => {
-            const classCode = item.class_code;
-            acc[classCode] = (acc[classCode] || 0) + 1;
-            return acc;
-        }, {});
+            const enrolledRows = await sequelize.query(
+                `SELECT DISTINCT ta.user_code AS user_code
+                 FROM tb_turma_alunos ta
+                 INNER JOIN tb_usuarios u ON u.user_code = ta.user_code
+                 WHERE ta.active = 'Y'
+                   AND ta.class_code IN (:codes)
+                   AND u.role = 'STD'
+                   AND u.user_status = 'A'`,
+                { replacements: { codes: activeClassCodes }, type: QueryTypes.SELECT }
+            );
+            enrolledUserCodes = enrolledRows.map((r) => r.user_code);
+        }
+
+        const alunoWhere = {
+            role: 'STD',
+            user_status: 'A'
+        };
+        if (enrolledUserCodes.length > 0) {
+            alunoWhere.user_code = { [Op.notIn]: enrolledUserCodes };
+        }
 
         const alunos = await Usuario.findAll({
-            where: {
-                role: 'STD',
-                user_status: 'A',
-                user_code: { [Op.notIn]: enrolledUserCodes }
-            },
+            where: alunoWhere,
             attributes: ['user_code', 'first_name', 'last_name', 'photo'],
             order: [['first_name', 'ASC'], ['last_name', 'ASC']]
         });
@@ -2896,59 +2998,12 @@ app.get('/turmas', async (req, res) => {
             };
         });
 
-        const matriculasDetalhadas = await TurmaAluno.findAll({
-            where: { active: 'Y' },
-            attributes: ['class_code', 'user_code']
-        });
-
-        const userCodesMatriculados = [...new Set(matriculasDetalhadas.map((item) => item.user_code).filter(Boolean))];
-        const alunosMatriculados = userCodesMatriculados.length > 0
-            ? await Usuario.findAll({
-                where: {
-                    user_code: { [Op.in]: userCodesMatriculados },
-                    role: 'STD',
-                    user_status: 'A'
-                },
-                attributes: ['user_code', 'first_name', 'last_name', 'photo']
-            })
-            : [];
-
-        const alunoByCode = alunosMatriculados.reduce((acc, item) => {
-            const plain = item.get({ plain: true });
-            acc[plain.user_code] = {
-                user_code: plain.user_code,
-                full_name: `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code,
-                avatar: plain.photo || '/uploads/users/default.jpg'
-            };
-            return acc;
-        }, {});
-
-        const alunosByTurma = matriculasDetalhadas.reduce((acc, item) => {
-            const classCode = item.class_code;
-            const aluno = alunoByCode[item.user_code];
-            if (!classCode || !aluno) {
-                return acc;
-            }
-
-            if (!acc[classCode]) {
-                acc[classCode] = [];
-            }
-
-            acc[classCode].push(aluno);
-            return acc;
-        }, {});
-
-        Object.keys(alunosByTurma).forEach((classCode) => {
-            alunosByTurma[classCode].sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'));
-        });
-
         return res.render('turmas', {
             mensagem: req.query.mensagem || '',
             tipoMensagem: req.query.tipo || 'info',
             turmas: turmasVm,
             alunos: alunosVm,
-            totalAlunosAtivos: alunosVm.length,
-            alunosByTurmaJSON: JSON.stringify(alunosByTurma)
+            totalAlunosAtivos: alunosVm.length
         });
     } catch (err) {
         return res.render('turmas', {
@@ -2956,9 +3011,80 @@ app.get('/turmas', async (req, res) => {
             tipoMensagem: 'danger',
             turmas: [],
             alunos: [],
-            totalAlunosAtivos: 0,
-            alunosByTurmaJSON: '{}'
+            totalAlunosAtivos: 0
         });
+    }
+});
+
+app.get('/turmas/matriculados/:classCode', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.status(403).json({ ok: false, mensagem: 'Acesso restrito a professor e administrador.' });
+    }
+
+    const classCode = String(req.params.classCode || '').trim().toUpperCase();
+    const pageRaw = parseInt(req.query.page, 10);
+    const currentPageRequested = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const itemsPerPage = 10;
+    const pagesPerBlock = 8;
+
+    try {
+        const turma = await Turma.findOne({ where: { class_code: classCode, active: 'Y' } });
+        if (!turma) {
+            return res.status(404).json({ ok: false, mensagem: 'Turma não encontrada ou inativa.' });
+        }
+
+        const countRows = await sequelize.query(
+            `SELECT COUNT(*) AS cnt
+             FROM tb_turma_alunos ta
+             INNER JOIN tb_usuarios u ON u.user_code = ta.user_code
+             WHERE ta.active = 'Y'
+               AND ta.class_code = :classCode
+               AND u.role = 'STD'
+               AND u.user_status = 'A'`,
+            { replacements: { classCode }, type: QueryTypes.SELECT }
+        );
+        const totalItems = Number(countRows[0]?.cnt || 0);
+
+        const paginationVm = buildPaginationVm(currentPageRequested, totalItems, itemsPerPage, pagesPerBlock);
+        const offset = (paginationVm.currentPage - 1) * itemsPerPage;
+
+        const alunoRows = await sequelize.query(
+            `SELECT u.user_code AS user_code, u.first_name AS first_name, u.last_name AS last_name, u.photo AS photo
+             FROM tb_turma_alunos ta
+             INNER JOIN tb_usuarios u ON u.user_code = ta.user_code
+             WHERE ta.active = 'Y'
+               AND ta.class_code = :classCode
+               AND u.role = 'STD'
+               AND u.user_status = 'A'
+             ORDER BY u.first_name ASC, u.last_name ASC
+             LIMIT :limit OFFSET :offset`,
+            { replacements: { classCode, limit: itemsPerPage, offset }, type: QueryTypes.SELECT }
+        );
+
+        const alunos = alunoRows.map((row) => ({
+            user_code: row.user_code,
+            full_name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.user_code,
+            avatar: row.photo || '/uploads/users/default.jpg'
+        }));
+
+        return res.json({
+            ok: true,
+            class_code: classCode,
+            class_name: turma.class_name,
+            alunos,
+            pagination: {
+                currentPage: paginationVm.currentPage,
+                totalPages: paginationVm.totalPages,
+                totalItems: paginationVm.totalItems,
+                hasPrev: paginationVm.hasPrev,
+                hasNext: paginationVm.hasNext,
+                prevPage: paginationVm.prevPage,
+                nextPage: paginationVm.nextPage,
+                pageNumbers: paginationVm.pageNumbers
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao carregar alunos da turma.' });
     }
 });
 
@@ -4672,6 +4798,201 @@ function buildPresencaViewModel(p) {
 }
 
 // =========================
+// LOG DE ATIVIDADES (somente ADM)
+// =========================
+function normalizeAdminLogsPerPage(raw) {
+    const n = parseInt(raw, 10);
+    return [10, 20, 30, 50].includes(n) ? n : 10;
+}
+
+function buildAdminLogsQueryStringNoPage(f) {
+    const params = new URLSearchParams();
+    if (f.data_inicio) {
+        params.set('data_inicio', f.data_inicio);
+    }
+    if (f.data_fim) {
+        params.set('data_fim', f.data_fim);
+    }
+    if (f.status && f.status !== 'todos') {
+        params.set('status', f.status);
+    }
+    if (f.user_code && f.user_code !== 'todos') {
+        params.set('user_code', f.user_code);
+    }
+    if (f.per_page && f.per_page !== 10) {
+        params.set('per_page', String(f.per_page));
+    }
+    return params.toString();
+}
+
+function buildAdminLogsUrl(filters) {
+    const qs = buildAdminLogsQueryStringNoPage(filters);
+    const page = filters.page && filters.page > 1 ? filters.page : null;
+    const params = new URLSearchParams(qs);
+    if (page) {
+        params.set('page', String(page));
+    }
+    const tail = params.toString();
+    return tail ? `/admin/logs?${tail}` : '/admin/logs';
+}
+
+app.get('/admin/logs', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) {
+        return forbidden;
+    }
+
+    const dataInicioRaw = String(req.query.data_inicio || '').trim();
+    const dataFimRaw = String(req.query.data_fim || '').trim();
+    const ymdRe = /^\d{4}-\d{2}-\d{2}$/;
+    const data_inicio = ymdRe.test(dataInicioRaw) ? dataInicioRaw : '';
+    const data_fim = ymdRe.test(dataFimRaw) ? dataFimRaw : '';
+
+    const statusRaw = String(req.query.status || 'todos').toLowerCase();
+    const status = ['todos', 'sucesso', 'falha'].includes(statusRaw) ? statusRaw : 'todos';
+
+    const userCodeRaw = String(req.query.user_code || '').trim().toUpperCase();
+    const user_code = userCodeRaw && userCodeRaw !== 'TODOS' ? userCodeRaw.substring(0, 5) : 'todos';
+
+    const per_page = normalizeAdminLogsPerPage(req.query.per_page);
+    const pageRaw = parseInt(req.query.page, 10);
+    const currentPageRequested = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const pagesPerBlock = 8;
+
+    const filterState = {
+        data_inicio,
+        data_fim,
+        status,
+        user_code,
+        per_page,
+        page: currentPageRequested
+    };
+
+    try {
+        const where = {};
+        const timeCond = {};
+        if (data_inicio) {
+            const d0 = toDateStartOfDay(data_inicio);
+            if (d0) {
+                timeCond[Op.gte] = d0;
+            }
+        }
+        if (data_fim) {
+            const d1 = toDateEndOfDay(data_fim);
+            if (d1) {
+                timeCond[Op.lte] = d1;
+            }
+        }
+        if (Object.keys(timeCond).length > 0) {
+            where.createdAt = timeCond;
+        }
+        if (status === 'sucesso') {
+            where.status = 'SUCESSO';
+        } else if (status === 'falha') {
+            where.status = 'FALHA';
+        }
+        if (user_code !== 'todos') {
+            where.user_code = user_code;
+        }
+
+        const totalItems = await AppActivityLog.count({ where });
+
+        const paginationVm = buildPaginationVm(currentPageRequested, totalItems, per_page, pagesPerBlock);
+        const offset = (paginationVm.currentPage - 1) * per_page;
+
+        const rows = await AppActivityLog.findAll({
+            where,
+            order: [['id', 'DESC']],
+            limit: per_page,
+            offset,
+            raw: true
+        });
+
+        const distinctRows = await sequelize.query(
+            `SELECT DISTINCT user_code FROM tb_app_activity_logs
+             WHERE user_code IS NOT NULL AND TRIM(user_code) <> ''
+             ORDER BY user_code ASC`,
+            { type: QueryTypes.SELECT }
+        );
+        const userCodesForFilter = distinctRows
+            .map((r) => String(r.user_code || '').trim().toUpperCase())
+            .filter(Boolean);
+
+        const userFilterOptions = userCodesForFilter.map((code) => ({
+            code,
+            selected: user_code !== 'todos' && user_code === code
+        }));
+
+        const filterForView = {
+            ...filterState,
+            statusTodos: status === 'todos',
+            statusSucesso: status === 'sucesso',
+            statusFalha: status === 'falha',
+            userTodos: user_code === 'todos',
+            per10: per_page === 10,
+            per20: per_page === 20,
+            per30: per_page === 30,
+            per50: per_page === 50
+        };
+
+        const mkUrl = (pageNum) => buildAdminLogsUrl({ ...filterState, page: pageNum });
+
+        const logs = rows.map((row) => {
+            const at = row.created_at != null ? row.created_at : row.createdAt;
+            return {
+                id: row.id,
+                data_hora_label: at ? moment(at).format('DD/MM/YYYY HH:mm:ss') : '-',
+                user_code_label: row.user_code ? String(row.user_code).trim() : '—',
+                action: row.action,
+                endpoint: row.endpoint,
+                status: row.status,
+                status_label: row.status === 'SUCESSO' ? 'SUCESSO' : 'FALHA',
+                status_class: row.status === 'SUCESSO' ? 'text-success' : 'text-danger'
+            };
+        });
+
+        const pagination = {
+            currentPage: paginationVm.currentPage,
+            totalPages: paginationVm.totalPages,
+            totalItems: paginationVm.totalItems,
+            hasPrev: paginationVm.hasPrev,
+            hasNext: paginationVm.hasNext,
+            prevPage: paginationVm.prevPage,
+            nextPage: paginationVm.nextPage,
+            pageNumbers: paginationVm.pageNumbers.map((pn) => ({
+                number: pn.number,
+                isCurrent: pn.isCurrent,
+                href: mkUrl(pn.number)
+            })),
+            prevHref: mkUrl(paginationVm.prevPage),
+            nextHref: mkUrl(paginationVm.nextPage),
+            selectPages: Array.from({ length: paginationVm.totalPages }, (_u, i) => {
+                const number = i + 1;
+                return {
+                    number,
+                    isCurrent: number === paginationVm.currentPage,
+                    href: mkUrl(number)
+                };
+            })
+        };
+
+        const logsQueryStringNoPage = buildAdminLogsQueryStringNoPage(filterState);
+
+        return res.render('admin_logs', {
+            logs,
+            pagination,
+            filter: filterForView,
+            userFilterOptions,
+            logsQueryStringNoPage,
+            clearLogsUrl: '/admin/logs'
+        });
+    } catch (err) {
+        const vm = getErrorViewModel(500);
+        return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar log de atividades: ' + err.message });
+    }
+});
+
+// =========================
 // RELATÓRIOS (PRO/ADM)
 // =========================
 app.get('/relatorios', async (req, res) => {
@@ -5910,6 +6231,7 @@ async function ensureTurmaSchema() {
     await MensagemProfessor.sync();
     await MensagemProfessorOcultacao.sync();
     await MensagemProfessorLeitura.sync();
+    await AppActivityLog.sync({ alter: true });
     await ensureUsuarioClassCodeColumn();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();

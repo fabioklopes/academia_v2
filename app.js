@@ -1260,6 +1260,45 @@ const OBI_SIZE_OPTIONS = [
 const KIMONO_SIZE_CODES = new Set(KIMONO_WAGI_ZUBON_SIZE_OPTIONS.map((o) => o.code));
 const OBI_SIZE_CODES = new Set(OBI_SIZE_OPTIONS.map((o) => o.code));
 
+function formatPhoneDigitsToBr(phone) {
+    if (phone === null || phone === undefined || phone === '') {
+        return '—';
+    }
+    const cleaned = String(phone).replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{2})(\d{5})(\d{4})$/);
+    if (match) {
+        return `(${match[1]}) ${match[2]}-${match[3]}`;
+    }
+    const s = String(phone).trim();
+    return s || '—';
+}
+
+function getKimonoWagiZubonSizeLabel(code) {
+    const c = String(code || '').trim();
+    const hit = KIMONO_WAGI_ZUBON_SIZE_OPTIONS.find((o) => o.code === c);
+    return hit ? hit.label : (c || '—');
+}
+
+function getObiSizeOptionLabel(code) {
+    const c = String(code || '').trim();
+    const hit = OBI_SIZE_OPTIONS.find((o) => o.code === c);
+    return hit ? hit.label : (c || '—');
+}
+
+function roleLabelPtBr(role) {
+    if (role === 'ADM') return 'Administrador';
+    if (role === 'PRO') return 'Professor';
+    if (role === 'STD') return 'Aluno';
+    return String(role || '').trim() || '—';
+}
+
+function userStatusLabelPtBr(status) {
+    if (status === 'P') return 'Pendente';
+    if (status === 'A') return 'Ativo';
+    if (status === 'C') return 'Cancelado';
+    return String(status || '').trim() || '—';
+}
+
 function getResetPasswordBaseUrl(req) {
     const configuredBaseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL;
     if (configuredBaseUrl) {
@@ -5003,6 +5042,28 @@ app.get('/admin/logs', async (req, res) => {
             raw: true
         });
 
+        const codesOnPage = [
+            ...new Set(
+                rows
+                    .map((row) => String(row.user_code || '').trim().toUpperCase())
+                    .filter((c) => c.length > 0)
+            )
+        ];
+        const codesWithProfile = new Set();
+        if (codesOnPage.length > 0) {
+            const foundUsers = await Usuario.findAll({
+                where: { user_code: { [Op.in]: codesOnPage } },
+                attributes: ['user_code'],
+                raw: true
+            });
+            foundUsers.forEach((u) => {
+                const c = String(u.user_code || '').trim().toUpperCase();
+                if (c) {
+                    codesWithProfile.add(c);
+                }
+            });
+        }
+
         const distinctRows = await sequelize.query(
             `SELECT DISTINCT user_code FROM tb_app_activity_logs
              WHERE user_code IS NOT NULL AND TRIM(user_code) <> ''
@@ -5034,10 +5095,15 @@ app.get('/admin/logs', async (req, res) => {
 
         const logs = rows.map((row) => {
             const at = row.created_at != null ? row.created_at : row.createdAt;
+            const codeKey = row.user_code ? String(row.user_code).trim().toUpperCase() : '';
+            const user_profile_href = codeKey && codesWithProfile.has(codeKey)
+                ? `/admin/usuario/${encodeURIComponent(codeKey)}`
+                : null;
             return {
                 id: row.id,
                 data_hora_label: at ? moment(at).format('DD/MM/YYYY HH:mm:ss') : '-',
                 user_code_label: row.user_code ? String(row.user_code).trim() : '—',
+                user_profile_href,
                 action: row.action,
                 endpoint: row.endpoint,
                 status: row.status,
@@ -5084,6 +5150,118 @@ app.get('/admin/logs', async (req, res) => {
     } catch (err) {
         const vm = getErrorViewModel(500);
         return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar log de atividades: ' + err.message });
+    }
+});
+
+app.get('/admin/usuario/:user_code', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) {
+        return forbidden;
+    }
+
+    const user_code = String(req.params.user_code || '').trim().toUpperCase().substring(0, 5);
+    if (!user_code) {
+        const vm = getErrorViewModel(404);
+        return res.status(404).render('errors/error', { ...vm, message: 'Código de usuário inválido.' });
+    }
+
+    try {
+        const usuario = await Usuario.findOne({
+            where: { user_code },
+            attributes: {
+                exclude: [
+                    'password',
+                    'reset_token_hash',
+                    'reset_token_expires',
+                    'email_change_token_hash',
+                    'email_change_expires'
+                ]
+            },
+            include: [
+                {
+                    model: Usuario,
+                    as: 'responsavel',
+                    attributes: ['user_code', 'first_name', 'last_name', 'email', 'phone', 'role'],
+                    required: false
+                }
+            ]
+        });
+
+        if (!usuario) {
+            const vm = getErrorViewModel(404);
+            return res.status(404).render('errors/error', { ...vm, message: 'Usuário não encontrado para este código.' });
+        }
+
+        const plain = usuario.get({ plain: true });
+        const beltDisplay = getBeltDisplayData(plain.actual_belt, plain.actual_degree);
+        const birthParts = parseBirthDateParts(plain.birth_date);
+        const birthYmd = birthParts ? buildYmdFromParts(birthParts) : '';
+        const birth_date_br = birthYmd ? formatDateBrFromYmd(birthYmd) : '—';
+
+        let turmaNome = '';
+        if (plain.class_code) {
+            const turma = await Turma.findByPk(String(plain.class_code).trim(), {
+                attributes: ['class_name', 'class_code']
+            });
+            if (turma) {
+                const t = turma.get({ plain: true });
+                turmaNome = t.class_name || '';
+            }
+        }
+
+        const photoUrl = plain.photo && String(plain.photo).trim()
+            ? String(plain.photo).trim()
+            : '/uploads/users/default.jpg';
+
+        const responsavel = plain.responsavel
+            ? {
+                user_code: plain.responsavel.user_code,
+                full_name: `${plain.responsavel.first_name || ''} ${plain.responsavel.last_name || ''}`.trim()
+                    || plain.responsavel.user_code,
+                email: plain.responsavel.email,
+                phone_br: formatPhoneDigitsToBr(plain.responsavel.phone),
+                role_label: roleLabelPtBr(plain.responsavel.role),
+                profile_href: `/admin/usuario/${encodeURIComponent(String(plain.responsavel.user_code || '').trim().toUpperCase())}`
+            }
+            : null;
+
+        const usuarioDetalhe = {
+            user_code: plain.user_code,
+            full_name: `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code,
+            email: plain.email,
+            pending_email: plain.pending_email ? String(plain.pending_email).trim() : '',
+            phone_br: formatPhoneDigitsToBr(plain.phone),
+            birth_date_br,
+            role_label: roleLabelPtBr(plain.role),
+            user_status_label: userStatusLabelPtBr(plain.user_status),
+            belt_summary_label: beltDisplay.summaryLabel,
+            belt_image_path: beltDisplay.imagePath,
+            wagi_label: getKimonoWagiZubonSizeLabel(plain.wagi_size),
+            zubon_label: getKimonoWagiZubonSizeLabel(plain.zubon_size),
+            obi_label: getObiSizeOptionLabel(plain.obi_size),
+            class_display: plain.class_code
+                ? (turmaNome ? `${plain.class_code} — ${turmaNome}` : String(plain.class_code))
+                : '—',
+            photo_url: photoUrl,
+            responsavel,
+            birthday_prefs_label: plain.birthday_messages_disabled
+                ? `Mensagens de aniversário desativadas${
+                    plain.birthday_messages_disabled_year != null
+                        ? ` (ano ${plain.birthday_messages_disabled_year})`
+                        : ''
+                }`
+                : 'Mensagens de aniversário ativas',
+            conta_criada_label: plain.createdAt ? moment(plain.createdAt).format('DD/MM/YYYY HH:mm:ss') : '—'
+        };
+
+        return res.render('admin_usuario_detalhe', {
+            usuario: usuarioDetalhe,
+            voltarLogsUrl: '/admin/logs',
+            pageTitle: 'Detalhes do cadastro'
+        });
+    } catch (err) {
+        const vm = getErrorViewModel(500);
+        return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar cadastro: ' + err.message });
     }
 });
 

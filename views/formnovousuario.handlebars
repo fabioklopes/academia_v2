@@ -138,7 +138,7 @@
         </div>
 
         <div class="form-floating mb-3">
-            <input type="tel" class="form-control" id="phone" name="phone" {{#if camposErro.phone}}{{/if}} value="{{usuario.phone}}" placeholder="" required>
+            <input type="tel" class="form-control" id="phone" name="phone" {{#if camposErro.phone}}{{/if}} value="{{usuario.phone}}" placeholder="" inputmode="numeric" maxlength="11" autocomplete="tel" pattern="[0-9]{11}" required>
             <label for="phone">WhatsApp (apenas números)</label>
             {{#if camposErro.phone}}<div class="invalid-feedback" style="display:block;">{{camposErro.phone}}</div>{{/if}}
         </div>
@@ -182,23 +182,35 @@
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" id="wagi_size" name="wagi_size" {{#if camposErro.wagi_size}}{{/if}} value="{{usuario.wagi_size}}" placeholder=""
-                required>
-            <label for="wagi_size">Tamanho - Parte de cima do kimono (Wagi)</label>
+            <select class="form-select{{#if camposErro.wagi_size}} is-invalid{{/if}}" id="wagi_size" name="wagi_size" required>
+                <option value="">-- Selecione --</option>
+                {{#each kimonoSizeOptions}}
+                <option value="{{code}}" {{#if (eq ../usuario.wagi_size code)}}selected{{/if}}>{{label}}</option>
+                {{/each}}
+            </select>
+            <label for="wagi_size">Tamanho da Jaqueta (Wagi)</label>
             {{#if camposErro.wagi_size}}<div class="invalid-feedback" style="display:block;">{{camposErro.wagi_size}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" id="zubon_size" name="zubon_size" {{#if camposErro.zubon_size}}{{/if}} value="{{usuario.zubon_size}}" placeholder=""
-                required>
-            <label for="zubon_size">Tamanho - Parte de baixo do kimono (Zubon)</label>
+            <select class="form-select{{#if camposErro.zubon_size}} is-invalid{{/if}}" id="zubon_size" name="zubon_size" required>
+                <option value="">-- Selecione --</option>
+                {{#each kimonoSizeOptions}}
+                <option value="{{code}}" {{#if (eq ../usuario.zubon_size code)}}selected{{/if}}>{{label}}</option>
+                {{/each}}
+            </select>
+            <label for="zubon_size">Tamanho da Calça (Zubon)</label>
             {{#if camposErro.zubon_size}}<div class="invalid-feedback" style="display:block;">{{camposErro.zubon_size}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" id="obi_size" name="obi_size" {{#if camposErro.obi_size}}{{/if}} value="{{usuario.obi_size}}" placeholder=""
-                required>
-            <label for="obi_size">Tamanho - Faixa (Obi)</label>
+            <select class="form-select{{#if camposErro.obi_size}} is-invalid{{/if}}" id="obi_size" name="obi_size" required>
+                <option value="">-- Selecione --</option>
+                {{#each obiSizeOptions}}
+                <option value="{{code}}" {{#if (eq ../usuario.obi_size code)}}selected{{/if}}>{{label}}</option>
+                {{/each}}
+            </select>
+            <label for="obi_size">Tamanho da Faixa (Obi)</label>
             {{#if camposErro.obi_size}}<div class="invalid-feedback" style="display:block;">{{camposErro.obi_size}}</div>{{/if}}
         </div>
 
@@ -286,6 +298,26 @@
                 .join(' ');
         }
 
+        const NAME_CONNECTIVES_LOWER = new Set(['do', 'dos', 'da', 'das', 'de', 'e']);
+
+        function normalizeLastNameWithConnectives(raw) {
+            const text = String(raw || '').trim().replace(/\s+/g, ' ');
+            if (!text) return '';
+            return text
+                .split(' ')
+                .map((word) => {
+                    const w = word.trim();
+                    if (!w) return '';
+                    const lower = w.toLocaleLowerCase('pt-BR');
+                    if (NAME_CONNECTIVES_LOWER.has(lower)) {
+                        return lower;
+                    }
+                    return lower.charAt(0).toLocaleUpperCase('pt-BR') + lower.slice(1);
+                })
+                .filter(Boolean)
+                .join(' ');
+        }
+
         function normalizeEmail(raw) {
             return String(raw || '').trim().toLowerCase();
         }
@@ -302,13 +334,23 @@
 
         if (lastNameInput && !lastNameInput.readOnly) {
             lastNameInput.addEventListener('blur', () => {
-                lastNameInput.value = normalizeName(lastNameInput.value);
+                lastNameInput.value = normalizeLastNameWithConnectives(lastNameInput.value);
             });
         }
 
         if (emailInput && !emailInput.readOnly) {
             emailInput.addEventListener('blur', () => {
                 emailInput.value = normalizeEmail(emailInput.value);
+            });
+        }
+
+        const phoneInput = document.getElementById('phone');
+        if (phoneInput) {
+            phoneInput.addEventListener('input', () => {
+                const digits = String(phoneInput.value || '').replace(/\D/g, '').slice(0, 11);
+                if (phoneInput.value !== digits) {
+                    phoneInput.value = digits;
+                }
             });
         }
 

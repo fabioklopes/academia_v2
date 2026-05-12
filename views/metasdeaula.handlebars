@@ -368,7 +368,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         data-meta-id="{{id}}"
                         data-meta-title="{{title}}"
                         data-meta-description="{{description}}"
-                        data-meta-professor="{{#if criador}}{{criador.first_name}} {{criador.last_name}}{{else}}-{{/if}}"
+                        data-meta-total-classes="{{total_classes}}"
+                        data-meta-min-classes="{{min_classes}}"
+                        data-meta-min-classes-percent="{{min_classes_percent}}"
                         data-meta-inicio="{{start_date}}"
                         data-meta-termino="{{end_date}}"
                         data-meta-exam-inicio="{{exam_start_date}}"
@@ -405,28 +407,23 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<div class="modal fade" id="modalDetalheMetaAluno" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade" id="modalDetalheMetaAluno" tabindex="-1" aria-labelledby="metaTitleModal" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="metaTitleModal"></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <div id="metaDescriptionModal" class="mb-3"></div>
-                <div class="text-body-secondary small">
-                    <p class="mb-2">
-                        <strong>Criado por:</strong> <span id="metaProfessorModal"></span>
-                    </p>
-                    <p class="mb-2">
-                        <strong>Início:</strong> <span id="metaInicioModal"></span>
-                    </p>
-                    <p class="mb-0">
-                        <strong>Término:</strong> <span id="metaTerminoModal"></span>
-                    </p>
-                    <p class="mb-0 mt-2">
-                        <strong>Período de Exame:</strong> <span id="metaExamPeriodoModal"></span>
-                    </p>
+                <div id="metaDescriptionModal" class="mb-3 text-body fw-normal" style="white-space: pre-wrap;"></div>
+                <div class="small">
+                    <p class="mb-1"><strong>Total de Aulas:</strong> <span id="metaTotalAulasModal" class="fw-normal text-body"></span></p>
+                    <p class="mb-1"><strong>Quantidade Mínima:</strong> <span id="metaMinAulasModal" class="fw-normal text-body"></span> (<span id="metaMinPercentModal" class="fw-normal text-body"></span>%)</p>
+                    <p class="mb-1"><strong>Início:</strong> <span id="metaInicioModal" class="fw-normal text-body"></span></p>
+                    <p class="mb-3"><strong>Término:</strong> <span id="metaTerminoModal" class="fw-normal text-body"></span></p>
+                    <hr class="my-3">
+                    <p class="mb-2"><strong>Período de Exame</strong></p>
+                    <p class="mb-1"><strong>Início:</strong> <span id="metaExamInicioModal" class="fw-normal text-body"></span></p>
+                    <p class="mb-0"><strong>Término:</strong> <span id="metaExamTerminoModal" class="fw-normal text-body"></span></p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -457,7 +454,9 @@ document.addEventListener('DOMContentLoaded', function() {
         row.addEventListener('click', function () {
             const title = this.dataset.metaTitle;
             const description = this.dataset.metaDescription;
-            const professor = this.dataset.metaProfessor;
+            const totalClasses = this.dataset.metaTotalClasses;
+            const minClasses = this.dataset.metaMinClasses;
+            const minPercent = this.dataset.metaMinClassesPercent;
             const inicio = this.dataset.metaInicio;
             const termino = this.dataset.metaTermino;
             const examInicio = this.dataset.metaExamInicio;
@@ -465,10 +464,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             document.getElementById('metaTitleModal').textContent = title;
             document.getElementById('metaDescriptionModal').textContent = description;
-            document.getElementById('metaProfessorModal').textContent = professor;
+            document.getElementById('metaTotalAulasModal').textContent = totalClasses;
+            document.getElementById('metaMinAulasModal').textContent = minClasses;
+            document.getElementById('metaMinPercentModal').textContent = minPercent;
             document.getElementById('metaInicioModal').textContent = inicio;
             document.getElementById('metaTerminoModal').textContent = termino;
-            document.getElementById('metaExamPeriodoModal').textContent = `${examInicio} à ${examTermino}`;
+            document.getElementById('metaExamInicioModal').textContent = examInicio;
+            document.getElementById('metaExamTerminoModal').textContent = examTermino;
 
             const modal = new bootstrap.Modal(document.getElementById('modalDetalheMetaAluno'));
             modal.show();

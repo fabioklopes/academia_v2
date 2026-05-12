@@ -1,0 +1,108 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Notificações</h1>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="/presenca"><i class="fa-solid fa-calendar-check"></i> Controle de Presença</a>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btnMarcarTodasNotificacoes" {{#unless notificacoes.length}}disabled{{/unless}}>
+            <i class="fa-regular fa-envelope-open"></i> Marcar todas como lidas
+        </button>
+    </div>
+</div>
+
+<p class="text-body-secondary small mb-3">Aqui aparecem avisos do sistema, por exemplo quando uma solicitação de presença é aprovada ou negada por um professor.</p>
+
+{{#unless notificacoes.length}}
+<div class="card border-0 shadow-sm">
+    <div class="card-body text-body-secondary text-center py-5">
+        <i class="fa-solid fa-inbox fs-1 d-block mb-3 opacity-50"></i>
+        Nenhuma notificação por enquanto.
+    </div>
+</div>
+{{else}}
+<div class="vstack gap-3" id="listaNotificacoes">
+    {{#each notificacoes}}
+    <div class="card border-0 shadow-sm notificacao-item {{#if isUnread}}border-start border-4 border-primary{{/if}}" data-id="{{id}}" data-unread="{{#if isUnread}}1{{else}}0{{/if}}">
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                <div>
+                    <span class="badge text-bg-{{kindBadge}} me-1">
+                        {{#if (eq kind 'PRESENCA_APROVADA')}}Presença aprovada{{else}}{{#if (eq kind 'PRESENCA_NEGADA')}}Presença negada{{else}}Sistema{{/if}}{{/if}}
+                    </span>
+                    {{#if isUnread}}<span class="badge text-bg-primary">Nova</span>{{/if}}
+                    <h2 class="h6 mt-2 mb-1">{{title}}</h2>
+                    <p class="mb-0 text-body-secondary">{{body}}</p>
+                    <div class="small text-body-secondary mt-2">
+                        <i class="fa-regular fa-clock"></i> {{createdAtLabel}}
+                        {{#unless isUnread}}
+                        <span class="ms-2"><i class="fa-regular fa-eye"></i> Lida em {{readAtLabel}}</span>
+                        {{/unless}}
+                    </div>
+                </div>
+                {{#if isUnread}}
+                <button type="button" class="btn btn-sm btn-outline-primary shrink-0 btn-marcar-notificacao-lida" data-id="{{id}}" aria-label="Marcar como lida">
+                    <i class="fa-regular fa-envelope-open"></i> Marcar lida
+                </button>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+    {{/each}}
+</div>
+{{/unless}}
+
+<script>
+(function () {
+    function showToast(message, variant) {
+        const wrap = document.createElement('div');
+        wrap.className = 'alert alert-' + (variant === 'danger' ? 'danger' : 'primary') + ' alert-autodismiss position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+        wrap.style.zIndex = '2000';
+        wrap.setAttribute('role', 'alert');
+        wrap.textContent = message;
+        document.body.appendChild(wrap);
+        window.setTimeout(function () { wrap.remove(); }, 4000);
+    }
+
+    async function postJson(url) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.ok) {
+            throw new Error(data.mensagem || 'Falha na requisição.');
+        }
+        return data;
+    }
+
+    const btnTodas = document.getElementById('btnMarcarTodasNotificacoes');
+    if (btnTodas) {
+        btnTodas.addEventListener('click', async function () {
+            btnTodas.disabled = true;
+            try {
+                await postJson('/notificacoes/marcar-todas-lidas');
+                window.location.reload();
+            } catch (e) {
+                showToast(e.message, 'danger');
+                btnTodas.disabled = false;
+            }
+        });
+    }
+
+    document.querySelectorAll('.btn-marcar-notificacao-lida').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            const id = btn.getAttribute('data-id');
+            if (!id) return;
+            btn.disabled = true;
+            try {
+                await postJson('/notificacoes/' + encodeURIComponent(id) + '/ler');
+                window.location.reload();
+            } catch (e) {
+                showToast(e.message, 'danger');
+                btn.disabled = false;
+            }
+        });
+    });
+})();
+</script>

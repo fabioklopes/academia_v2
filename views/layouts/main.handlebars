@@ -178,16 +178,17 @@
 
                     {{#if studentMassMessageBell}}
                     <a
-                        class="student-message-bell-link ms-auto me-2 {{#unless studentMassMessageBell.hasUnread}}is-idle{{/unless}}"
+                        class="student-message-bell-link ms-auto me-2 {{#unless studentMassMessageBell.navbarHasUnread}}is-idle{{/unless}}"
                         id="studentMassMessageBellLink"
-                        href="{{studentMassMessageBell.href}}"
-                        aria-label="Mensagens do Mestre"
-                        title="Mensagens do Mestre"
+                        href="{{studentMassMessageBell.navbarHref}}"
+                        data-notif-unread="{{studentMassMessageBell.notificationUnreadCount}}"
+                        aria-label="Avisos e notificações"
+                        title="Avisos do mestre e notificações do sistema"
                     >
                         <span class="student-message-bell-icon" id="studentMassMessageBellIcon">
-                            <i class="fa-solid fa-bell{{#if studentMassMessageBell.hasUnread}} fa-shake text-primary{{else}} text-secondary{{/if}}"></i>
+                            <i class="fa-solid fa-bell{{#if studentMassMessageBell.navbarHasUnread}} fa-shake text-primary{{else}} text-secondary{{/if}}"></i>
                         </span>
-                        <span class="badge rounded-pill text-bg-danger position-absolute top-0 start-50 translate-middle student-message-bell-badge {{#unless studentMassMessageBell.hasUnread}}d-none{{/unless}}" id="studentMassMessageBellBadge">{{studentMassMessageBell.unreadCount}}</span>
+                        <span class="badge rounded-pill text-bg-danger position-absolute top-0 start-50 translate-middle student-message-bell-badge {{#unless studentMassMessageBell.navbarHasUnread}}d-none{{/unless}}" id="studentMassMessageBellBadge">{{studentMassMessageBell.navbarUnreadCount}}</span>
                     </a>
                     {{/if}}
 
@@ -451,7 +452,7 @@
             })();
         </script>
         <script>
-            function updateStudentMassMessageBell(unreadCount) {
+            function updateStudentMassMessageBell(massUnreadCount) {
                 const bellLink = document.getElementById('studentMassMessageBellLink');
                 const bellIcon = document.getElementById('studentMassMessageBellIcon');
                 const bellBadge = document.getElementById('studentMassMessageBellBadge');
@@ -461,20 +462,22 @@
                     return;
                 }
 
-                const normalizedUnreadCount = Math.max(Number(unreadCount) || 0, 0);
-                const hasUnread = normalizedUnreadCount > 0;
+                const mass = Math.max(Number(massUnreadCount) || 0, 0);
+                const notif = Math.max(parseInt(bellLink.getAttribute('data-notif-unread') || '0', 10) || 0, 0);
+                const navbarTotal = mass + notif;
+                const hasNavbarUnread = navbarTotal > 0;
 
-                bellLink.classList.toggle('is-idle', !hasUnread);
-                bellIcon.innerHTML = hasUnread
+                bellLink.classList.toggle('is-idle', !hasNavbarUnread);
+                bellIcon.innerHTML = hasNavbarUnread
                     ? '<i class="fa-solid fa-bell fa-shake text-primary"></i>'
                     : '<i class="fa-solid fa-bell text-secondary"></i>';
 
-                bellBadge.textContent = String(normalizedUnreadCount);
-                bellBadge.classList.toggle('d-none', !hasUnread);
+                bellBadge.textContent = String(navbarTotal);
+                bellBadge.classList.toggle('d-none', !hasNavbarUnread);
 
                 if (menuBadge) {
-                    menuBadge.textContent = String(normalizedUnreadCount);
-                    menuBadge.classList.toggle('d-none', !hasUnread);
+                    menuBadge.textContent = String(mass);
+                    menuBadge.classList.toggle('d-none', mass === 0);
                 }
             }
         </script>

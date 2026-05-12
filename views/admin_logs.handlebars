@@ -74,7 +74,13 @@
                         <tr>
                             <td class="text-body-secondary">{{id}}</td>
                             <td class="text-nowrap">{{data_hora_label}}</td>
-                            <td><code>{{user_code_label}}</code></td>
+                            <td>
+                                {{#if user_profile_href}}
+                                    <a href="{{user_profile_href}}" class="text-decoration-none" title="Ver ficha completa do cadastro"><code>{{user_code_label}}</code></a>
+                                {{else}}
+                                    <code>{{user_code_label}}</code>
+                                {{/if}}
+                            </td>
                             <td><span class="badge bg-secondary-subtle text-secondary-emphasis border">{{action}}</span></td>
                             <td class="text-break"><small>{{endpoint}}</small></td>
                             <td class="{{status_class}} fw-semibold">{{status_label}}</td>

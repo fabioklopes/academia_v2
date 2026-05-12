@@ -1,0 +1,138 @@
+<div class="admin-usuario-detalhe container py-4" style="max-width: 52rem;">
+    <div class="mb-4">
+        <a class="btn btn-outline-secondary" href="{{voltarLogsUrl}}">
+            <i class="fa-solid fa-arrow-left me-1"></i> Voltar para o log de atividades
+        </a>
+    </div>
+
+    <header class="mb-4">
+        <h1 class="h3 mb-1">{{pageTitle}}</h1>
+        <p class="text-body-secondary mb-0">Visualização administrativa dos dados cadastrados (sem histórico de requisições).</p>
+    </header>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <div class="row g-4 align-items-start">
+                <div class="col-12 col-md-5 text-center text-md-start">
+                    <div class="admin-usuario-foto-wrap mx-auto mx-md-0">
+                        <img
+                            src="{{usuario.photo_url}}"
+                            alt="Foto de {{usuario.full_name}}"
+                            class="admin-usuario-foto img-fluid rounded-3 border shadow-sm"
+                            data-admin-user-photo
+                            width="400"
+                            height="400"
+                        >
+                    </div>
+                    <div class="mt-3">
+                        <img src="{{usuario.belt_image_path}}" alt="Faixa" class="admin-usuario-faixa-img img-fluid" style="max-height: 3.5rem;">
+                        <div class="small text-body-secondary mt-1">{{usuario.belt_summary_label}}</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-7">
+                    <h2 class="h5 mb-3">{{usuario.full_name}}</h2>
+                    <dl class="row mb-0 small">
+                        <dt class="col-sm-4 text-body-secondary">Código</dt>
+                        <dd class="col-sm-8"><code>{{usuario.user_code}}</code></dd>
+
+                        <dt class="col-sm-4 text-body-secondary">E-mail</dt>
+                        <dd class="col-sm-8 text-break">{{usuario.email}}</dd>
+
+                        {{#if usuario.pending_email}}
+                        <dt class="col-sm-4 text-body-secondary">E-mail pendente</dt>
+                        <dd class="col-sm-8 text-break">{{usuario.pending_email}} <span class="badge text-bg-warning">aguardando confirmação</span></dd>
+                        {{/if}}
+
+                        <dt class="col-sm-4 text-body-secondary">Telefone</dt>
+                        <dd class="col-sm-8">{{usuario.phone_br}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Data de nascimento</dt>
+                        <dd class="col-sm-8">{{usuario.birth_date_br}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Perfil</dt>
+                        <dd class="col-sm-8">{{usuario.role_label}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Status do cadastro</dt>
+                        <dd class="col-sm-8">{{usuario.user_status_label}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Turma</dt>
+                        <dd class="col-sm-8">{{usuario.class_display}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Tamanho Wagi</dt>
+                        <dd class="col-sm-8">{{usuario.wagi_label}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Tamanho Zubon</dt>
+                        <dd class="col-sm-8">{{usuario.zubon_label}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Tamanho Obi</dt>
+                        <dd class="col-sm-8">{{usuario.obi_label}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Preferências</dt>
+                        <dd class="col-sm-8">{{usuario.birthday_prefs_label}}</dd>
+
+                        <dt class="col-sm-4 text-body-secondary">Conta criada em</dt>
+                        <dd class="col-sm-8">{{usuario.conta_criada_label}}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{#if usuario.responsavel}}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-body-secondary border-0">
+            <h2 class="h6 mb-0">Responsável vinculado</h2>
+        </div>
+        <div class="card-body small">
+            <dl class="row mb-0">
+                <dt class="col-sm-4 text-body-secondary">Nome</dt>
+                <dd class="col-sm-8">
+                    <a href="{{usuario.responsavel.profile_href}}">{{usuario.responsavel.full_name}}</a>
+                    <span class="text-body-secondary">(<code>{{usuario.responsavel.user_code}}</code>)</span>
+                </dd>
+                <dt class="col-sm-4 text-body-secondary">Perfil</dt>
+                <dd class="col-sm-8">{{usuario.responsavel.role_label}}</dd>
+                <dt class="col-sm-4 text-body-secondary">E-mail</dt>
+                <dd class="col-sm-8 text-break">{{usuario.responsavel.email}}</dd>
+                <dt class="col-sm-4 text-body-secondary">Telefone</dt>
+                <dd class="col-sm-8">{{usuario.responsavel.phone_br}}</dd>
+            </dl>
+        </div>
+    </div>
+    {{/if}}
+
+    <div class="mb-5">
+        <a class="btn btn-outline-secondary" href="{{voltarLogsUrl}}">
+            <i class="fa-solid fa-arrow-left me-1"></i> Voltar para o log de atividades
+        </a>
+    </div>
+</div>
+
+<style>
+    .admin-usuario-foto-wrap {
+        max-width: 22rem;
+    }
+
+    .admin-usuario-foto {
+        width: 100%;
+        max-height: 22rem;
+        object-fit: cover;
+        object-position: center top;
+    }
+
+    @media (min-width: 768px) {
+        .admin-usuario-foto {
+            max-height: 26rem;
+        }
+    }
+</style>
+
+<script>
+    (() => {
+        const img = document.querySelector('[data-admin-user-photo]');
+        if (!img) return;
+        img.addEventListener('error', () => {
+            img.src = '/uploads/users/default.jpg';
+        });
+    })();
+</script>

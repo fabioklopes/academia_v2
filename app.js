@@ -26,6 +26,7 @@ const MensagemProfessorLeitura = require('./models/MensagemProfessorLeitura');
 const MetaAula = require('./models/MetaAula');
 const MetaAulaTurma = require('./models/MetaAulaTurma');
 const AppActivityLog = require('./models/AppActivityLog');
+const Notificacao = require('./models/Notificacao');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -57,6 +58,12 @@ MetaAulaTurma.belongsTo(MetaAula, {
 MetaAulaTurma.belongsTo(Turma, {
     foreignKey: 'class_code',
     targetKey: 'class_code'
+});
+
+Notificacao.belongsTo(Usuario, {
+    as: 'destinatario',
+    foreignKey: 'user_code',
+    targetKey: 'user_code'
 });
 
 // Usado apenas para o "Esqueci a minha senha"
@@ -233,6 +240,7 @@ app.use(async (req, res, next) => {
 app.use(async (req, res, next) => {
     res.locals.birthdayLoginModal = req.session.birthdayLoginModal || null;
     res.locals.studentMassMessageBell = null;
+    res.locals.studentNotificationsBell = null;
     res.locals.motivationalMessage = req.session.motivationalMessage || '';
 
     if (req.session.birthdayLoginModal) {
@@ -246,12 +254,40 @@ app.use(async (req, res, next) => {
 
         const usuarioSessao = req.session.usuario;
         if (usuarioSessao && usuarioSessao.role === 'STD') {
+            const rawCode = await getEffectiveUserCode(req);
+            const codes = notificacaoRecipientCodes(rawCode);
+            let unreadNotif = 0;
+            if (codes.length > 0) {
+                unreadNotif = await Notificacao.count({
+                    where: {
+                        user_code: { [Op.in]: codes },
+                        read_at: null
+                    }
+                });
+            }
+
             const massMessageState = await getStudentMassMessageState(usuarioSessao);
-            res.locals.studentMassMessageBell = buildStudentMassMessageBellViewModel(massMessageState);
+            res.locals.studentMassMessageBell = buildStudentMassMessageBellViewModel(massMessageState, unreadNotif);
+
+            res.locals.studentNotificationsBell = {
+                href: '/notificacoes',
+                unreadCount: unreadNotif,
+                hasUnread: unreadNotif > 0
+            };
         }
     } catch (err) {
         console.error('Erro ao preparar modal de mensagem em massa:', err.message);
         res.locals.studentMassMessageBell = null;
+        const usuarioSessao = req.session.usuario;
+        if (usuarioSessao && usuarioSessao.role === 'STD') {
+            res.locals.studentNotificationsBell = {
+                href: '/notificacoes',
+                unreadCount: 0,
+                hasUnread: false
+            };
+        } else {
+            res.locals.studentNotificationsBell = null;
+        }
     }
 
     next();
@@ -982,12 +1018,19 @@ function buildMassMessageDeliveryKey(mensagem) {
     ].join('|');
 }
 
-function buildStudentMassMessageBellViewModel(state) {
+function buildStudentMassMessageBellViewModel(state, notificationUnread = 0) {
+    const massUnread = Number(state.unreadCount) || 0;
+    const notifUnread = Math.max(0, Number(notificationUnread) || 0);
+    const navbarUnread = massUnread + notifUnread;
     return {
         href: '/mensagens/mestre',
-        unreadCount: state.unreadCount,
+        unreadCount: massUnread,
         totalCount: state.totalCount,
-        hasUnread: state.unreadCount > 0
+        hasUnread: massUnread > 0,
+        navbarHref: notifUnread > 0 ? '/notificacoes' : '/mensagens/mestre',
+        navbarUnreadCount: navbarUnread,
+        navbarHasUnread: navbarUnread > 0,
+        notificationUnreadCount: notifUnread
     };
 }
 
@@ -2134,7 +2177,7 @@ app.get('/dashboard', async (req, res) => {
     try {
         const birthdayUsers = await Usuario.findAll({
             where: {
-                role: 'STD',
+                role: { [Op.in]: ['STD', 'PRO'] },
                 user_status: 'A',
                 birth_date: {
                     [Op.not]: null
@@ -4659,6 +4702,21 @@ async function getEffectiveUserCode(req) {
     return req.session.usuario ? req.session.usuario.user_code : null;
 }
 
+/** Alinha `user_code` à forma usada no banco (trim + maiúsculas) para presença/notificações. */
+function normalizeUserCode(value) {
+    const s = String(value || '').trim().toUpperCase();
+    return s || null;
+}
+
+/** Códigos possíveis do aluno na tabela de notificações (compatível com registros antigos). */
+function notificacaoRecipientCodes(raw) {
+    const n = normalizeUserCode(raw);
+    if (!n) {
+        return [];
+    }
+    return [...new Set([n, String(raw || '').trim()].filter(Boolean))];
+}
+
 function normalizeDateOnlyToStart(dateOnlyIso) {
     // dateOnlyIso: YYYY-MM-DD
     return new Date(`${dateOnlyIso}T00:00:00`);
@@ -4795,6 +4853,43 @@ function buildPresencaViewModel(p) {
         status_class: statusClassMap[plain.status] || '',
         class_type_display: classTypeDisplayMap[plain.class_type] || plain.class_type
     };
+}
+
+async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { observation } = {}) {
+    const vm = buildPresencaViewModel(presencaInstance);
+    const dataLabel = vm.request_date_formatted;
+    const aulaInfo = vm.class_type_display || vm.class_type;
+
+    const destCode = normalizeUserCode(presencaInstance.user_code);
+    if (!destCode) {
+        return;
+    }
+
+    if (decisao === 'A') {
+        await Notificacao.create({
+            user_code: destCode,
+            kind: 'PRESENCA_APROVADA',
+            title: 'Solicitação de presença aprovada',
+            body: `Sua solicitação de presença para ${dataLabel} (${aulaInfo}) foi aprovada.`,
+            presenca_id: presencaInstance.id,
+            read_at: null
+        });
+        return;
+    }
+
+    if (decisao === 'N') {
+        const obs = observation ? String(observation).trim() : '';
+        await Notificacao.create({
+            user_code: destCode,
+            kind: 'PRESENCA_NEGADA',
+            title: 'Solicitação de presença negada',
+            body: obs
+                ? `Sua solicitação de presença para ${dataLabel} (${aulaInfo}) foi negada. Motivo informado pelo professor: ${obs}`
+                : `Sua solicitação de presença para ${dataLabel} (${aulaInfo}) foi negada.`,
+            presenca_id: presencaInstance.id,
+            read_at: null
+        });
+    }
 }
 
 // =========================
@@ -5461,6 +5556,12 @@ app.post('/presenca/status/:id/aprovar', async (req, res) => {
         presenca.processed_by = req.session.usuario.user_code;
         await presenca.save();
 
+        try {
+            await createPresencaDecisaoNotificacao(presenca, 'A');
+        } catch (notifErr) {
+            console.error('Erro ao registrar notificação de presença aprovada:', notifErr.message);
+        }
+
         return res.json({ ok: true, mensagem: 'Solicitação aprovada com sucesso.' });
     } catch (err) {
         return res.json({ ok: false, mensagem: 'Erro ao aprovar solicitação: ' + err.message });
@@ -5495,6 +5596,12 @@ app.post('/presenca/status/:id/negar', async (req, res) => {
         presenca.observation = observation;
         presenca.processed_by = req.session.usuario.user_code;
         await presenca.save();
+
+        try {
+            await createPresencaDecisaoNotificacao(presenca, 'N', { observation });
+        } catch (notifErr) {
+            console.error('Erro ao registrar notificação de presença negada:', notifErr.message);
+        }
 
         return res.json({ ok: true, mensagem: 'Solicitação negada com sucesso.' });
     } catch (err) {
@@ -5635,6 +5742,116 @@ app.post('/presenca/cancelar/:id', async (req, res) => {
         return res.json({ ok: true });
     } catch (err) {
         return res.json({ ok: false, mensagem: 'Erro ao cancelar: ' + err.message });
+    }
+});
+
+app.get('/notificacoes', async (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        const mensagem = 'Apenas alunos podem acessar as notificações.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        const rawCode = await getEffectiveUserCode(req);
+        const codes = notificacaoRecipientCodes(rawCode);
+        if (codes.length === 0) {
+            const mensagem = 'Não foi possível identificar o aluno.';
+            return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+
+        const rows = await Notificacao.findAll({
+            where: { user_code: { [Op.in]: codes } },
+            order: [['createdAt', 'DESC']],
+            limit: 100
+        });
+
+        const notificacoes = rows.map((row) => {
+            const plain = row.get({ plain: true });
+            return {
+                ...plain,
+                createdAtLabel: formatDateTimePtBr(plain.createdAt),
+                readAtLabel: plain.read_at ? formatDateTimePtBr(plain.read_at) : '',
+                isUnread: !plain.read_at,
+                kindBadge:
+                    plain.kind === 'PRESENCA_NEGADA'
+                        ? 'danger'
+                        : plain.kind === 'PRESENCA_APROVADA'
+                            ? 'success'
+                            : 'secondary'
+            };
+        });
+
+        return res.render('notificacoes', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info',
+            notificacoes
+        });
+    } catch (err) {
+        return res.render('notificacoes', {
+            mensagem: 'Erro ao carregar notificações: ' + err.message,
+            tipoMensagem: 'danger',
+            notificacoes: []
+        });
+    }
+});
+
+app.post('/notificacoes/marcar-todas-lidas', async (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        return res.status(403).json({ ok: false, mensagem: 'Acesso negado.' });
+    }
+
+    try {
+        const codes = notificacaoRecipientCodes(await getEffectiveUserCode(req));
+        if (codes.length === 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Aluno não identificado.' });
+        }
+
+        const now = new Date();
+        await Notificacao.update(
+            { read_at: now },
+            { where: { user_code: { [Op.in]: codes }, read_at: null } }
+        );
+
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: err.message });
+    }
+});
+
+app.post('/notificacoes/:id/ler', async (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        return res.status(403).json({ ok: false, mensagem: 'Acesso negado.' });
+    }
+
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ ok: false, mensagem: 'ID inválido.' });
+        }
+
+        const codes = notificacaoRecipientCodes(await getEffectiveUserCode(req));
+        if (codes.length === 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Aluno não identificado.' });
+        }
+
+        const notif = await Notificacao.findOne({
+            where: { id, user_code: { [Op.in]: codes } }
+        });
+        if (!notif) {
+            return res.status(404).json({ ok: false, mensagem: 'Notificação não encontrada.' });
+        }
+
+        if (!notif.read_at) {
+            notif.read_at = new Date();
+            await notif.save();
+        }
+
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: err.message });
     }
 });
 
@@ -6232,6 +6449,7 @@ async function ensureTurmaSchema() {
     await MensagemProfessorOcultacao.sync();
     await MensagemProfessorLeitura.sync();
     await AppActivityLog.sync({ alter: true });
+    await Notificacao.sync({ alter: true });
     await ensureUsuarioClassCodeColumn();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();

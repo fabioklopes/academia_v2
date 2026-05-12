@@ -13,8 +13,8 @@
             <table class="table table-hover align-middle mb-0 birthday-table-fixed">
                 <thead class="table-light position-sticky top-0">
                     <tr>
-                        <th scope="col" aria-label="Aniversariantes">Nome</th>
-                        <th scope="col" class="text-end">Data</th>
+                        <th scope="col" class="birthday-col-name" aria-label="Aniversariantes">Nome</th>
+                        <th scope="col" class="text-end birthday-col-date">Data</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -35,12 +35,12 @@
                         role="button"
                         tabindex="0"
                     >
-                        <td>
+                        <td class="birthday-col-name">
                             <span class="d-inline-flex align-items-center gap-2 birthday-name-wrap">
-                                <span>{{full_name}}</span>
+                                <span class="birthday-name-text">{{full_name}}</span>
                             </span>
                         </td>
-                        <td class="text-end birthday-date-cell {{#if is_today}}birthday-date-today{{/if}}">
+                        <td class="text-end birthday-date-cell birthday-col-date {{#if is_today}}birthday-date-today{{/if}}">
                             {{#if is_today}}🎂HOJE!🎈{{else}}{{birth_short}}{{/if}}
                         </td>
                     </tr>
@@ -88,7 +88,7 @@
     .birthday-table-scroll {
         max-height: 320px;
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto;
     }
 
     .birthday-avatar-lg {
@@ -120,9 +120,23 @@
     }
 
     .birthday-table-fixed {
-        width: 100%;
-        table-layout: fixed;
+        min-width: 100%;
+        width: max-content;
+        table-layout: auto;
         font-size: 0.9rem;
+    }
+
+    /* Data só no espaço do conteúdo; Nome em uma linha e usa o resto da largura útil */
+    .birthday-table-fixed th.birthday-col-date,
+    .birthday-table-fixed td.birthday-col-date {
+        width: 1%;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .birthday-table-fixed th.birthday-col-name,
+    .birthday-table-fixed td.birthday-col-name {
+        white-space: nowrap;
     }
 
     .birthday-table-fixed th,
@@ -136,7 +150,6 @@
 
     @media (max-width: 768px) {
         .birthday-name-wrap {
-            width: 100%;
             justify-content: flex-start;
             text-align: left;
         }

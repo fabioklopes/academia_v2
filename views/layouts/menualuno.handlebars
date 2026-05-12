@@ -19,6 +19,12 @@
                 <span class="badge text-bg-danger {{#unless studentMassMessageBell.hasUnread}}d-none{{/unless}}" id="studentMassMessageMenuBadge">{{studentMassMessageBell.unreadCount}}</span>
             </a>
         </li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center justify-content-between gap-2" href="{{studentNotificationsBell.href}}">
+                <span><i class="fa-solid fa-inbox"></i> Notificações</span>
+                <span class="badge text-bg-primary {{#unless studentNotificationsBell.hasUnread}}d-none{{/unless}}" id="studentNotificationsMenuBadge">{{studentNotificationsBell.unreadCount}}</span>
+            </a>
+        </li>
 
         <!-- Lista de Dependentes -->
         {{#if dependentes}}

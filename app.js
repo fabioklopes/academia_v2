@@ -30,6 +30,7 @@ const Notificacao = require('./models/Notificacao');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
+const { validateBrazilMobilePhone } = require('./utils/phone_br');
 
 
 MetaAula.belongsTo(Usuario, {
@@ -2187,6 +2188,16 @@ function buildUserFormViewModel(usuario, isEditMode, turmaOptions = []) {
             class_code: ''
         };
 
+    if (formData.wagi_size !== undefined && formData.wagi_size !== null) {
+        formData.wagi_size = String(formData.wagi_size).trim().toUpperCase();
+    }
+    if (formData.zubon_size !== undefined && formData.zubon_size !== null) {
+        formData.zubon_size = String(formData.zubon_size).trim().toUpperCase();
+    }
+    if (formData.obi_size !== undefined && formData.obi_size !== null) {
+        formData.obi_size = String(formData.obi_size).trim().toUpperCase();
+    }
+
     const selectedClassCode = formData.class_code || '';
 
     return {
@@ -2202,7 +2213,9 @@ function buildUserFormViewModel(usuario, isEditMode, turmaOptions = []) {
         turmaOptions: turmaOptions.map((turma) => ({
             ...turma,
             selected: turma.class_code === selectedClassCode
-        }))
+        })),
+        kimonoSizeOptions: KIMONO_WAGI_ZUBON_SIZE_OPTIONS,
+        obiSizeOptions: OBI_SIZE_OPTIONS
     };
 }
 
@@ -2516,6 +2529,11 @@ app.get('/metasdeaula', async (req, res) => {
             const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
             const examStartDateFormatted = plain.exam_start_date ? new Date(plain.exam_start_date).toLocaleDateString('pt-BR') : '-';
             const examEndDateFormatted = plain.exam_end_date ? new Date(plain.exam_end_date).toLocaleDateString('pt-BR') : '-';
+
+            const totalClasses = Number(plain.total_classes) || 0;
+            const minClasses = Number(plain.min_classes) || 0;
+            const minClassesPercent =
+                totalClasses > 0 ? Math.round((Math.min(minClasses, totalClasses) / totalClasses) * 100) : 0;
             
             return {
                 ...plain,
@@ -2523,7 +2541,8 @@ app.get('/metasdeaula', async (req, res) => {
                 start_date: startDateFormatted,
                 end_date: endDateFormatted,
                 exam_start_date: examStartDateFormatted,
-                exam_end_date: examEndDateFormatted
+                exam_end_date: examEndDateFormatted,
+                min_classes_percent: minClassesPercent
             };
         });
 
@@ -3414,10 +3433,12 @@ app.get('/aluno', async (req, res) => {
 
         if (searchTerm) {
             const normalizedPhone = searchTerm.replace(/\D/g, '');
+            const codeTerm = searchTerm.toUpperCase();
             const searchFilters = [
                 { first_name: { [Op.like]: `%${searchTerm}%` } },
                 { last_name: { [Op.like]: `%${searchTerm}%` } },
-                { email: { [Op.like]: `%${searchTerm}%` } }
+                { email: { [Op.like]: `%${searchTerm}%` } },
+                { user_code: { [Op.like]: `%${codeTerm}%` } }
             ];
 
             if (normalizedPhone) {
@@ -3753,28 +3774,18 @@ app.post('/meuperfil/dados-pessoais', requireMeuPerfilSession, async (req, res) 
 
         const firstName = normalizePersonName(req.body.first_name);
         const lastName = formatLastNameWithConnectives(req.body.last_name);
-        const phoneRaw = String(req.body.phone || '').trim();
+        const phoneValidation = validateBrazilMobilePhone(req.body.phone);
         const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
 
         if (!firstName || !lastName) {
             return res.status(400).json({ ok: false, mensagem: 'Informe o primeiro nome e o restante do nome.' });
         }
 
-        if (!phoneRaw) {
-            return res.status(400).json({ ok: false, mensagem: 'Informe o WhatsApp com DDD e 11 dígitos.' });
+        if (!phoneValidation.ok) {
+            return res.status(400).json({ ok: false, mensagem: phoneValidation.message });
         }
 
-        if (!/^\d+$/.test(phoneRaw)) {
-            return res.status(400).json({
-                ok: false,
-                mensagem: 'No WhatsApp, use apenas números, sem letras, espaços ou símbolos.'
-            });
-        }
-
-        const phoneDigits = phoneRaw;
-        if (phoneDigits.length !== 11) {
-            return res.status(400).json({ ok: false, mensagem: 'Informe o WhatsApp com DDD e 11 dígitos.' });
-        }
+        const phoneDigits = phoneValidation.phone;
 
         if (!beltDegreeValidation.isValid) {
             return res.status(400).json({ ok: false, mensagem: beltDegreeValidation.message });
@@ -4026,13 +4037,13 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             first_name: req.body.first_name || '',
             last_name: req.body.last_name || '',
             email: req.body.email || '',
-            phone: req.body.phone || '',
+            phone: String(req.body.phone || '').replace(/\D/g, '').slice(0, 11),
             birth_date: req.body.birth_date || '',
             actual_belt: req.body.actual_belt || '',
             actual_degree: req.body.actual_degree || '0',
-            wagi_size: req.body.wagi_size || '',
-            zubon_size: req.body.zubon_size || '',
-            obi_size: req.body.obi_size || '',
+            wagi_size: String(req.body.wagi_size || '').trim().toUpperCase(),
+            zubon_size: String(req.body.zubon_size || '').trim().toUpperCase(),
+            obi_size: String(req.body.obi_size || '').trim().toUpperCase(),
             photo: '/uploads/users/default.jpg',
             responsible_id: responsibleId,
             class_code: req.body.class_code || ''
@@ -4049,6 +4060,8 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                 selected: option.value === formData.actual_belt
             })),
             turmaOptions,
+            kimonoSizeOptions: KIMONO_WAGI_ZUBON_SIZE_OPTIONS,
+            obiSizeOptions: OBI_SIZE_OPTIONS,
             mensagem: errorMessage,
             tipoMensagem: 'erro',
             camposErro: fieldErrors
@@ -4087,6 +4100,20 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             }
             return renderFormWithError('Preencha todos os campos obrigatórios para continuar.', fieldErrors);
         }
+
+        const phoneValidation = validateBrazilMobilePhone(req.body.phone);
+        if (!phoneValidation.ok) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', {
+                phone: phoneValidation.message
+            });
+        }
+        const phoneDigits = phoneValidation.phone;
 
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const isDependent = !!responsibleId;
@@ -4158,6 +4185,37 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             return renderFormWithError('Corrija os campos em desconformidade abaixo.', fieldErrors);
         }
 
+        const wagiCode = String(req.body.wagi_size || '').trim().toUpperCase();
+        const zubonCode = String(req.body.zubon_size || '').trim().toUpperCase();
+        const obiCode = String(req.body.obi_size || '').trim().toUpperCase();
+        if (!KIMONO_SIZE_CODES.has(wagiCode) || !KIMONO_SIZE_CODES.has(zubonCode)) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            const medidasErr = {};
+            if (!KIMONO_SIZE_CODES.has(wagiCode)) {
+                medidasErr.wagi_size = 'Selecione um tamanho válido para a jaqueta (Wagi).';
+            }
+            if (!KIMONO_SIZE_CODES.has(zubonCode)) {
+                medidasErr.zubon_size = 'Selecione um tamanho válido para a calça (Zubon).';
+            }
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', medidasErr);
+        }
+        if (!OBI_SIZE_CODES.has(obiCode)) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', {
+                obi_size: 'Selecione um tamanho válido para a faixa (Obi).'
+            });
+        }
+
         const passwordHash = await argon2.hash(senha);
 
         let emailFinal = (req.body.email || '').trim().toLowerCase();
@@ -4166,7 +4224,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
         }
 
         const firstNameFinal = normalizePersonName(req.body.first_name);
-        const lastNameFinal = normalizePersonName(req.body.last_name);
+        const lastNameFinal = formatLastNameWithConnectives(req.body.last_name);
 
         if (!firstNameFinal || !lastNameFinal) {
             const fieldErrors = {};
@@ -4183,13 +4241,13 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             password: passwordHash,
             role: 'STD',
             user_status: 'P',
-            phone: req.body.phone,
+            phone: phoneDigits,
             birth_date: req.body.birth_date,
             actual_belt: beltDegreeValidation.beltValue,
             actual_degree: beltDegreeValidation.degreeValue,
-            wagi_size: req.body.wagi_size,
-            zubon_size: req.body.zubon_size,
-            obi_size: req.body.obi_size,
+            wagi_size: wagiCode,
+            zubon_size: zubonCode,
+            obi_size: obiCode,
             responsible_id: responsibleId || null,
             class_code: classCode
         });
@@ -4284,7 +4342,11 @@ app.get('/aluno/editar/:id', async (req, res) => {
             return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
         }
 
-        return res.render('formnovousuario', buildUserFormViewModel(usuario, true));
+        return res.render('formnovousuario', {
+            ...buildUserFormViewModel(usuario, true),
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info'
+        });
     } catch (err) {
         const mensagem = 'Erro ao carregar aluno: ' + err.message;
         return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
@@ -4309,8 +4371,24 @@ app.post('/aluno/editar/:id', upload.single('photo'), async (req, res) => {
             return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
         }
 
+        const phoneValidation = validateBrazilMobilePhone(req.body.phone);
+        if (!phoneValidation.ok) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            const q = new URLSearchParams({
+                mensagem: phoneValidation.message,
+                tipo: 'erro'
+            });
+            return res.redirect(`/aluno/editar/${alunoId}?${q.toString()}`);
+        }
+        const phoneDigits = phoneValidation.phone;
+
         usuario.email = req.body.email;
-        usuario.phone = req.body.phone;
+        usuario.phone = phoneDigits;
 
         if (!beltDegreeValidation.isValid) {
             if (req.file) {
@@ -4326,9 +4404,33 @@ app.post('/aluno/editar/:id', upload.single('photo'), async (req, res) => {
 
         usuario.actual_belt = beltDegreeValidation.beltValue;
         usuario.actual_degree = beltDegreeValidation.degreeValue;
-        usuario.wagi_size = req.body.wagi_size;
-        usuario.zubon_size = req.body.zubon_size;
-        usuario.obi_size = req.body.obi_size;
+
+        const wagiCodeEd = String(req.body.wagi_size || '').trim().toUpperCase();
+        const zubonCodeEd = String(req.body.zubon_size || '').trim().toUpperCase();
+        const obiCodeEd = String(req.body.obi_size || '').trim().toUpperCase();
+        if (!KIMONO_SIZE_CODES.has(wagiCodeEd) || !KIMONO_SIZE_CODES.has(zubonCodeEd)) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            const mensagem = 'Selecione tamanhos válidos para Wagi e Zubon.';
+            return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+        if (!OBI_SIZE_CODES.has(obiCodeEd)) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            const mensagem = 'Selecione um tamanho válido para a faixa (Obi).';
+            return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+        usuario.wagi_size = wagiCodeEd;
+        usuario.zubon_size = zubonCodeEd;
+        usuario.obi_size = obiCodeEd;
 
         if (req.body.password1 || req.body.password2) {
             if (req.body.password1 !== req.body.password2) {

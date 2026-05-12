@@ -179,6 +179,14 @@
         background: rgba(255, 255, 255, 0.28);
     }
 
+    .aluno-search-clear {
+        border-radius: 0;
+    }
+
+    .aluno-search-submit {
+        white-space: nowrap;
+    }
+
     .aluno-novo-badge {
         font-size: 0.7rem;
         font-weight: 600;
@@ -204,16 +212,132 @@
 </style>
 
 <form id="alunoSearchForm" method="GET" action="/aluno" class="mb-3">
-    <input
-        type="text"
-        id="alunoSearchInput"
-        name="q"
-        class="form-control"
-        placeholder="Pesquisar por nome, e-mail ou telefone"
-        value="{{searchTerm}}"
-        autocomplete="off"
-    >
+    <div class="input-group">
+        <input
+            type="text"
+            id="alunoSearchInput"
+            name="q"
+            class="form-control"
+            placeholder="Pesquisar por nome, e-mail, telefone ou código do usuário"
+            value="{{searchTerm}}"
+            autocomplete="off"
+        >
+        <button
+            type="button"
+            id="alunoSearchClear"
+            class="btn btn-outline-secondary aluno-search-clear d-none"
+            title="Limpar pesquisa"
+            aria-label="Limpar pesquisa"
+        >
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <button type="submit" class="btn btn-primary aluno-search-submit">
+            <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>
+            Pesquisar
+        </button>
+    </div>
 </form>
+
+<script>
+    (function () {
+        const STORAGE_RESTORE = 'alunoSearchRestore';
+        const STORAGE_NO_REFOCUS = 'alunoSearchNoRefocus';
+
+        const form = document.getElementById('alunoSearchForm');
+        const input = document.getElementById('alunoSearchInput');
+        const clearBtn = document.getElementById('alunoSearchClear');
+        if (!form || !input || !clearBtn) {
+            return;
+        }
+
+        function caretInTrimmed(raw, caret) {
+            if (raw == null || caret == null || caret < 0) {
+                return 0;
+            }
+            const lead = raw.length - raw.trimStart().length;
+            const trimmed = raw.trim();
+            const pos = caret - lead;
+            return Math.max(0, Math.min(trimmed.length, pos));
+        }
+
+        function updateClearButton() {
+            clearBtn.classList.toggle('d-none', input.value.trim() === '');
+        }
+
+        if (sessionStorage.getItem(STORAGE_NO_REFOCUS)) {
+            sessionStorage.removeItem(STORAGE_NO_REFOCUS);
+        } else {
+            const rawRestore = sessionStorage.getItem(STORAGE_RESTORE);
+            sessionStorage.removeItem(STORAGE_RESTORE);
+            if (rawRestore) {
+                try {
+                    const parsed = JSON.parse(rawRestore);
+                    const q = parsed && parsed.q != null ? String(parsed.q) : '';
+                    const caret = parsed && typeof parsed.caret === 'number' ? parsed.caret : 0;
+                    if (q === input.value.trim()) {
+                        requestAnimationFrame(function () {
+                            input.focus();
+                            const len = input.value.length;
+                            const pos = Math.min(Math.max(0, caret), len);
+                            input.setSelectionRange(pos, pos);
+                        });
+                    }
+                } catch (_e) {
+                    /* ignore */
+                }
+            }
+        }
+
+        updateClearButton();
+
+        function buildAlunoSearchUrl() {
+            const q = input.value.trim();
+            const params = new URLSearchParams();
+            if (q) {
+                params.set('q', q);
+            }
+            const qs = params.toString();
+            return qs ? `/aluno?${qs}` : '/aluno';
+        }
+
+        function applyAlunoSearch() {
+            const next = buildAlunoSearchUrl();
+            const current = window.location.pathname + (window.location.search || '');
+            if (next === current) {
+                return;
+            }
+            sessionStorage.removeItem(STORAGE_NO_REFOCUS);
+            const raw = input.value;
+            const q = raw.trim();
+            const caret = caretInTrimmed(raw, input.selectionStart != null ? input.selectionStart : q.length);
+            sessionStorage.setItem(STORAGE_RESTORE, JSON.stringify({ caret: caret, q: q }));
+            window.location.assign(next);
+        }
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            applyAlunoSearch();
+        });
+
+        input.addEventListener('input', function () {
+            updateClearButton();
+        });
+
+        clearBtn.addEventListener('click', function () {
+            sessionStorage.removeItem(STORAGE_RESTORE);
+            sessionStorage.setItem(STORAGE_NO_REFOCUS, '1');
+            input.value = '';
+            updateClearButton();
+            const next = '/aluno';
+            const current = window.location.pathname + (window.location.search || '');
+            if (next === current) {
+                input.blur();
+                return;
+            }
+            window.location.assign(next);
+        });
+    })();
+</script>
 
 <table class="table table-striped align-middle">
     <thead>

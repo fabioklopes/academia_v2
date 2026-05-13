@@ -1,0 +1,162 @@
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Katas e movimentos</h1>
+</div>
+
+<p class="text-body-secondary small mb-3">Escolha a cor da faixa para ver os movimentos de cada grau.</p>
+
+<div class="mb-4">
+    <label for="selectFaixaKata" class="form-label">Faixa</label>
+    <select class="form-select form-select" id="selectFaixaKata" style="max-width: 24rem;">
+        <option value="white">Branca</option>
+        <option value="blue">Azul</option>
+        <option value="purple">Roxa</option>
+        <option value="brown">Marrom</option>
+        <option value="black">Preta</option>
+    </select>
+</div>
+
+<div class="accordion" id="accordionKatas">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#katasCollapse0" aria-expanded="true" aria-controls="katasCollapse0">
+                <span class="katas-accordion-title" data-degree="0"></span>
+            </button>
+        </h2>
+        <div id="katasCollapse0" class="accordion-collapse collapse" data-bs-parent="#accordionKatas">
+            <div class="accordion-body" data-degree-body="0"></div>
+        </div>
+    </div>
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#katasCollapse1" aria-expanded="false" aria-controls="katasCollapse1">
+                <span class="katas-accordion-title" data-degree="1"></span>
+            </button>
+        </h2>
+        <div id="katasCollapse1" class="accordion-collapse collapse" data-bs-parent="#accordionKatas">
+            <div class="accordion-body" data-degree-body="1"></div>
+        </div>
+    </div>
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#katasCollapse2" aria-expanded="false" aria-controls="katasCollapse2">
+                <span class="katas-accordion-title" data-degree="2"></span>
+            </button>
+        </h2>
+        <div id="katasCollapse2" class="accordion-collapse collapse" data-bs-parent="#accordionKatas">
+            <div class="accordion-body" data-degree-body="2"></div>
+        </div>
+    </div>
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#katasCollapse3" aria-expanded="false" aria-controls="katasCollapse3">
+                <span class="katas-accordion-title" data-degree="3"></span>
+            </button>
+        </h2>
+        <div id="katasCollapse3" class="accordion-collapse collapse" data-bs-parent="#accordionKatas">
+            <div class="accordion-body" data-degree-body="3"></div>
+        </div>
+    </div>
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#katasCollapse4" aria-expanded="false" aria-controls="katasCollapse4">
+                <span class="katas-accordion-title" data-degree="4"></span>
+            </button>
+        </h2>
+        <div id="katasCollapse4" class="accordion-collapse collapse" data-bs-parent="#accordionKatas">
+            <div class="accordion-body" data-degree-body="4"></div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="katas-data">{{{katasJson}}}</script>
+<script>
+(function () {
+    const BELT_LABELS = {
+        white: 'Branca',
+        blue: 'Azul',
+        purple: 'Roxa',
+        brown: 'Marrom',
+        black: 'Preta'
+    };
+
+    function degreeTitle(corLabel, degree) {
+        if (degree === 0) return corLabel + ' - 0 Grau';
+        if (degree === 1) return corLabel + ' - 1 Grau';
+        return corLabel + ' - ' + degree + ' Graus';
+    }
+
+    function sortedMovimentKeys(obj) {
+        if (!obj || typeof obj !== 'object') return [];
+        return Object.keys(obj)
+            .filter(function (k) {
+                return /^moviment_\d+$/.test(k);
+            })
+            .sort(function (a, b) {
+                var na = parseInt(a.replace('moviment_', ''), 10);
+                var nb = parseInt(b.replace('moviment_', ''), 10);
+                return na - nb;
+            });
+    }
+
+    function renderBody(container, movimentsNode) {
+        container.textContent = '';
+        if (!movimentsNode || typeof movimentsNode !== 'object') {
+            var empty = document.createElement('p');
+            empty.className = 'text-body-secondary mb-0';
+            empty.textContent = 'Nenhum movimento cadastrado para este grau.';
+            container.appendChild(empty);
+            return;
+        }
+        var keys = sortedMovimentKeys(movimentsNode);
+        if (keys.length === 0) {
+            var empty2 = document.createElement('p');
+            empty2.className = 'text-body-secondary mb-0';
+            empty2.textContent = 'Nenhum movimento cadastrado para este grau.';
+            container.appendChild(empty2);
+            return;
+        }
+        var ul = document.createElement('ul');
+        ul.className = 'mb-0 ps-3';
+        keys.forEach(function (k, idx) {
+            var li = document.createElement('li');
+            li.className = idx === keys.length - 1 ? 'mb-0' : 'mb-2';
+            li.textContent = movimentsNode[k];
+            ul.appendChild(li);
+        });
+        container.appendChild(ul);
+    }
+
+    var dataEl = document.getElementById('katas-data');
+    var data = {};
+    try {
+        data = JSON.parse(dataEl.textContent);
+    } catch (e) {
+        data = {};
+    }
+
+    var select = document.getElementById('selectFaixaKata');
+    var titleEls = document.querySelectorAll('.katas-accordion-title');
+    var bodyEls = document.querySelectorAll('[data-degree-body]');
+
+    function refresh() {
+        var key = select.value;
+        var corLabel = BELT_LABELS[key] || key;
+        var belt = data[key] || {};
+        var moviments = belt.moviments || {};
+
+        titleEls.forEach(function (span) {
+            var d = parseInt(span.getAttribute('data-degree'), 10);
+            span.textContent = degreeTitle(corLabel, d);
+        });
+
+        bodyEls.forEach(function (div) {
+            var d = parseInt(div.getAttribute('data-degree-body'), 10);
+            var nodeKey = d + '_degree_moviments';
+            renderBody(div, moviments[nodeKey]);
+        });
+    }
+
+    select.addEventListener('change', refresh);
+    refresh();
+})();
+</script>

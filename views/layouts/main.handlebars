@@ -408,7 +408,10 @@
                     inputEl.addEventListener('click', clampLatestDatepickerSoon);
                 }
 
-                function init() {
+                let globalListenersAttached = false;
+
+                /** Liga o js-datepicker aos inputs; idempotente (dataset.datepickerBound). */
+                function bindAppDatepickerTargets() {
                     if (typeof datepicker !== 'function') return;
 
                     // ISO (aaaa-mm-dd): inputs que antes eram type="date"
@@ -421,14 +424,45 @@
                         attachDatepickerToInput(el, 'br');
                     });
 
-                    window.addEventListener('resize', clampLatestDatepickerSoon);
-                    window.addEventListener('scroll', clampLatestDatepickerSoon, true);
+                    if (!globalListenersAttached) {
+                        globalListenersAttached = true;
+                        window.addEventListener('resize', clampLatestDatepickerSoon);
+                        window.addEventListener('scroll', clampLatestDatepickerSoon, true);
+                    }
+                }
+
+                /**
+                 * Agenda a ligação do datepicker por último: após o DOM completo, após os handlers
+                 * síncronos do DOMContentLoaded da página, e após um frame de layout/pintura.
+                 */
+                function scheduleBindAppDatepickers() {
+                    setTimeout(() => {
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(bindAppDatepickerTargets);
+                        });
+                    }, 0);
                 }
 
                 if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', init);
+                    document.addEventListener('DOMContentLoaded', scheduleBindAppDatepickers);
                 } else {
-                    init();
+                    scheduleBindAppDatepickers();
+                }
+
+                window.addEventListener('load', () => {
+                    requestAnimationFrame(bindAppDatepickerTargets);
+                });
+
+                if (typeof MutationObserver !== 'undefined') {
+                    let moTimer = null;
+                    const mo = new MutationObserver(() => {
+                        if (moTimer) clearTimeout(moTimer);
+                        moTimer = setTimeout(() => {
+                            moTimer = null;
+                            bindAppDatepickerTargets();
+                        }, 50);
+                    });
+                    mo.observe(document.documentElement, { childList: true, subtree: true });
                 }
             })();
         </script>

@@ -74,6 +74,8 @@ MetaAula.associate = (models) => {
     });
 };
 
-MetaAula.sync({ alter: true });
+if (process.env.NODE_ENV !== 'test') {
+    MetaAula.sync({ alter: true });
+}
 
 module.exports = MetaAula;

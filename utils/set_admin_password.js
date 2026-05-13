@@ -42,9 +42,13 @@ async function main() {
   console.log('Senha do ADMIN atualizada com Argon2.');
 }
 
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .finally(() => sequelize.close());
+if (require.main === module) {
+  main()
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    })
+    .finally(() => sequelize.close());
+}
+
+module.exports = { main };

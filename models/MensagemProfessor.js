@@ -37,6 +37,8 @@ MensagemProfessor.associate = (models) => {
  * - force: true - Apaga a tabela existente e cria uma nova (perda de dados).
  * - alter: true - Altera a tabela para corresponder ao modelo, sem apagar dados (recomendado para produção).
 */
-MensagemProfessor.sync({ aler: true });
+if (process.env.NODE_ENV !== 'test') {
+    MensagemProfessor.sync({ aler: true });
+}
 
 module.exports = MensagemProfessor;

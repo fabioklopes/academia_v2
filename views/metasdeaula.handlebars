@@ -281,71 +281,86 @@ document.addEventListener('DOMContentLoaded', function() {
 </style>
 
 <script>
-    document.getElementById('selectAllTurmas')?.addEventListener('click', function (e) {
-        e.preventDefault();
-        const checkboxes = document.querySelectorAll('.meta-turma-checkbox');
-        checkboxes.forEach((checkbox) => checkbox.checked = true);
-    });
+    (function scheduleMetasNovaMetaDom() {
+        const clampNonNegativeInt = (value) => {
+            const parsed = parseInt(String(value || '').replace(/[^\d-]/g, ''), 10);
+            if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return 0;
+            return Math.max(0, parsed);
+        };
 
-    const clampNonNegativeInt = (value) => {
-        const parsed = parseInt(String(value || '').replace(/[^\d-]/g, ''), 10);
-        if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return 0;
-        return Math.max(0, parsed);
-    };
+        const updatePercentLabel = () => {
+            const total = clampNonNegativeInt(document.getElementById('metaTotalClasses')?.value);
+            const min = clampNonNegativeInt(document.getElementById('metaMinClasses')?.value);
+            const percentEl = document.getElementById('metaMinClassesPercent');
+            if (!percentEl) return;
 
-    const updatePercentLabel = () => {
-        const total = clampNonNegativeInt(document.getElementById('metaTotalClasses')?.value);
-        const min = clampNonNegativeInt(document.getElementById('metaMinClasses')?.value);
-        const percentEl = document.getElementById('metaMinClassesPercent');
-        if (!percentEl) return;
-
-        if (total <= 0) {
-            percentEl.textContent = '0%';
-            return;
-        }
-        const pct = Math.round((Math.min(min, total) / total) * 100);
-        percentEl.textContent = `${pct}%`;
-    };
-
-    document.getElementById('metaTotalClasses')?.addEventListener('input', updatePercentLabel);
-    document.getElementById('metaMinClasses')?.addEventListener('input', updatePercentLabel);
-
-    const applyDateMask = (inputEl) => {
-        if (!inputEl) return;
-        inputEl.addEventListener('input', function () {
-            const digits = this.value.replace(/\D/g, '').slice(0, 8);
-            const dd = digits.slice(0, 2);
-            const mm = digits.slice(2, 4);
-            const yyyy = digits.slice(4, 8);
-            let out = dd;
-            if (mm) out += '/' + mm;
-            if (yyyy) out += '/' + yyyy;
-            this.value = out;
-        });
-    };
-
-    document.querySelectorAll('.meta-date-input').forEach(applyDateMask);
-
-    // Se vier de /aluno com query openNovaMeta=1, abre o modal automaticamente.
-    document.addEventListener('DOMContentLoaded', function () {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('openNovaMeta') === '1') {
-            const el = document.getElementById('modalNovaMetaAula');
-            if (el) {
-                const modal = new bootstrap.Modal(el);
-                modal.show();
+            if (total <= 0) {
+                percentEl.textContent = '0%';
+                return;
             }
-        }
-    });
+            const pct = Math.round((Math.min(min, total) / total) * 100);
+            percentEl.textContent = `${pct}%`;
+        };
 
-    document.getElementById('formNovaMetaAula')?.addEventListener('submit', function (e) {
-        const sendNoticeCheckbox = document.getElementById('sendNoticeCheckbox');
-        const noticeInput = document.createElement('input');
-        noticeInput.type = 'hidden';
-        noticeInput.name = 'send_notice';
-        noticeInput.value = sendNoticeCheckbox?.checked ? 'yes' : 'no';
-        this.appendChild(noticeInput);
-    });
+        const applyDateMask = (inputEl) => {
+            if (!inputEl) return;
+            inputEl.addEventListener('input', function () {
+                const digits = this.value.replace(/\D/g, '').slice(0, 8);
+                const dd = digits.slice(0, 2);
+                const mm = digits.slice(2, 4);
+                const yyyy = digits.slice(4, 8);
+                let out = dd;
+                if (mm) out += '/' + mm;
+                if (yyyy) out += '/' + yyyy;
+                this.value = out;
+            });
+        };
+
+        function wireNovaMetaPageDom() {
+            document.getElementById('selectAllTurmas')?.addEventListener('click', function (e) {
+                e.preventDefault();
+                const checkboxes = document.querySelectorAll('.meta-turma-checkbox');
+                checkboxes.forEach((checkbox) => { checkbox.checked = true; });
+            });
+
+            document.getElementById('metaTotalClasses')?.addEventListener('input', updatePercentLabel);
+            document.getElementById('metaMinClasses')?.addEventListener('input', updatePercentLabel);
+
+            document.querySelectorAll('.meta-date-input').forEach(applyDateMask);
+
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('openNovaMeta') === '1') {
+                const el = document.getElementById('modalNovaMetaAula');
+                if (el && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    const modal = new bootstrap.Modal(el);
+                    modal.show();
+                }
+            }
+
+            document.getElementById('formNovaMetaAula')?.addEventListener('submit', function (e) {
+                const sendNoticeCheckbox = document.getElementById('sendNoticeCheckbox');
+                const noticeInput = document.createElement('input');
+                noticeInput.type = 'hidden';
+                noticeInput.name = 'send_notice';
+                noticeInput.value = sendNoticeCheckbox?.checked ? 'yes' : 'no';
+                this.appendChild(noticeInput);
+            });
+        }
+
+        function runAfterDomAndLayout() {
+            setTimeout(() => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(wireNovaMetaPageDom);
+                });
+            }, 0);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runAfterDomAndLayout);
+        } else {
+            runAfterDomAndLayout();
+        }
+    })();
 </script>
 
 {{else}}

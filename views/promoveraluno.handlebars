@@ -4,71 +4,143 @@
     </div>
 {{/if}}
 
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-    <h1 class="mb-0">Promover aluno</h1>
-    <a href="/aluno" class="btn btn-outline-secondary">
-        <i class="fa-solid fa-user-graduate"></i> Gerenciar alunos
-    </a>
-</div>
+<div class="promoveraluno-root">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4 w-100 min-w-0">
+        <h1 class="mb-0 text-break min-w-0 flex-grow-1">Promover aluno</h1>
+    </div>
 
-<p class="text-body-secondary mb-4">
-    Selecione um aluno <strong>ativo</strong> e marque o interruptor para conceder perfil de professor (<strong>PRO</strong>).
-    Para reverter um professor a aluno, use o modal em <a href="/aluno">Gerenciar alunos</a>.
-</p>
+    <p class="text-body-secondary mb-4">
+        Selecione um aluno <strong>ativo</strong> e marque o interruptor para conceder perfil de professor (<strong>PRO</strong>).
+        Para reverter um professor a aluno, use o modal em <a href="/aluno">Gerenciar alunos</a>.
+    </p>
 
-<style>
-    .promover-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 1px solid var(--bs-border-color-translucent);
-    }
-</style>
+    <style>
+        .promoveraluno-root {
+            max-width: 100%;
+            overflow-x: clip;
+        }
+        .promoveraluno-root .promover-table-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .promoveraluno-root .promover-table {
+            table-layout: fixed;
+            width: 100%;
+            max-width: 100%;
+        }
+        .promoveraluno-root .promover-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--bs-border-color-translucent);
+            flex-shrink: 0;
+        }
+        .promoveraluno-root .promover-nome-wrap {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .promoveraluno-root .promover-switch-col {
+            width: 5.75rem;
+            white-space: nowrap;
+        }
+        .promoveraluno-root .promover-pagination-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 100%;
+        }
+        .promoveraluno-root .promover-pagination-nav {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        .promoveraluno-root .promover-pagination-nav .pagination {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 0;
+        }
+        @media (max-width: 768px) {
+            .promoveraluno-root .promover-pagination-nav .page-link {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
 
-<table class="table table-striped align-middle">
-    <thead>
-        <tr>
-            <th>Aluno</th>
-            <th class="text-center" style="min-width: 11rem;">Professor</th>
-        </tr>
-    </thead>
-    <tbody>
-        {{#if usuarios.length}}
-            {{#each usuarios}}
+    <div class="promover-table-wrap mb-3">
+        <table class="table table-striped align-middle promover-table mb-0">
+            <thead>
                 <tr>
-                    <td>
-                        <div class="d-flex align-items-center gap-2">
-                            <img src="{{photo}}" alt="" class="promover-avatar">
-                            <div>
-                                <div class="fw-medium">{{first_name}} {{last_name}}</div>
-                                <small class="text-body-secondary">{{email}}</small>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="text-center">
-                        <div class="form-check form-switch d-inline-flex flex-column align-items-center">
-                            <input
-                                class="form-check-input ms-0 js-promover-professor"
-                                type="checkbox"
-                                role="switch"
-                                data-user-id="{{id}}"
-                                aria-label="Promover {{first_name}} {{last_name}} a professor"
-                            >
-                            <small class="text-body-secondary mt-1 js-promover-label">Não</small>
-                        </div>
-                    </td>
+                    <th scope="col">Aluno</th>
+                    <th scope="col" class="promover-switch-col text-center border-0 fw-normal">
+                        <span class="visually-hidden">Conceder perfil de professor</span>
+                    </th>
                 </tr>
-            {{/each}}
-        {{else}}
-            <tr>
-                <td colspan="2" class="text-center text-body-secondary py-4">
-                    Nenhum aluno ativo disponível para promoção.
-                </td>
-            </tr>
+            </thead>
+            <tbody>
+                {{#if usuarios.length}}
+                    {{#each usuarios}}
+                        <tr>
+                            <td class="min-w-0">
+                                <div class="d-flex align-items-center gap-2">
+                                    <img src="{{photo}}" alt="" class="promover-avatar">
+                                    <span class="promover-nome-wrap">{{first_name}} {{last_name}}</span>
+                                </div>
+                            </td>
+                            <td class="text-center align-middle promover-switch-col">
+                                <div class="form-check form-switch d-inline-flex flex-column align-items-center justify-content-center">
+                                    <input
+                                        class="form-check-input ms-0 js-promover-professor"
+                                        type="checkbox"
+                                        role="switch"
+                                        data-user-id="{{id}}"
+                                        aria-label="Promover {{first_name}} {{last_name}} a professor"
+                                    >
+                                    <small class="text-body-secondary mt-1 js-promover-label">Não</small>
+                                </div>
+                            </td>
+                        </tr>
+                    {{/each}}
+                {{else}}
+                    <tr>
+                        <td colspan="2" class="text-center text-body-secondary py-4">
+                            Nenhum aluno ativo disponível para promoção.
+                        </td>
+                    </tr>
+                {{/if}}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="promover-pagination-wrapper d-flex flex-column align-items-center gap-2 mb-4">
+        <small class="text-body-secondary">Total de registros: {{pagination.totalItems}}</small>
+        {{#if pagination.totalPages}}
+        <nav class="promover-pagination-nav" aria-label="Paginação de alunos">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {{#unless pagination.hasPrev}}disabled{{/unless}}">
+                    <a class="page-link" href="/promoveraluno?page={{pagination.prevPage}}" aria-label="Página anterior">Anterior</a>
+                </li>
+                {{#each pagination.pageNumbers}}
+                    <li class="page-item {{#if isCurrent}}active{{/if}}">
+                        <a class="page-link" href="/promoveraluno?page={{number}}">{{number}}</a>
+                    </li>
+                {{/each}}
+                <li class="page-item {{#unless pagination.hasNext}}disabled{{/unless}}">
+                    <a class="page-link" href="/promoveraluno?page={{pagination.nextPage}}" aria-label="Próxima página">Próxima</a>
+                </li>
+            </ul>
+        </nav>
         {{/if}}
-    </tbody>
-</table>
+    </div>
+</div>
 
 <script>
 (function () {

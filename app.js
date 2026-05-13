@@ -3391,11 +3391,34 @@ app.get('/promoveraluno', async (req, res) => {
         return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
     }
 
+    const pageRaw = parseInt(req.query.page, 10);
+    const currentPageRequested = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const itemsPerPage = 10;
+    const pagesPerBlock = 8;
+    const baseWhere = { role: 'STD', user_status: 'A' };
+
+    const emptyPagination = {
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        hasPrev: false,
+        hasNext: false,
+        prevPage: 1,
+        nextPage: 1,
+        pageNumbers: [{ number: 1, isCurrent: true }]
+    };
+
     try {
+        const totalItems = await Usuario.count({ where: baseWhere });
+        const paginationVm = buildPaginationVm(currentPageRequested, totalItems, itemsPerPage, pagesPerBlock);
+        const offset = (paginationVm.currentPage - 1) * itemsPerPage;
+
         const usuarios = await Usuario.findAll({
-            where: { role: 'STD', user_status: 'A' },
+            where: baseWhere,
             order: [['first_name', 'ASC'], ['last_name', 'ASC']],
-            attributes: ['id', 'first_name', 'last_name', 'email', 'photo', 'role', 'user_status']
+            attributes: ['id', 'first_name', 'last_name', 'photo', 'role', 'user_status'],
+            limit: itemsPerPage,
+            offset
         });
 
         const lista = usuarios.map((u) => {
@@ -3409,13 +3432,24 @@ app.get('/promoveraluno', async (req, res) => {
         return res.render('promoveraluno', {
             mensagem: req.query.mensagem || '',
             tipoMensagem: req.query.tipo || '',
-            usuarios: lista
+            usuarios: lista,
+            pagination: {
+                currentPage: paginationVm.currentPage,
+                totalPages: paginationVm.totalPages,
+                totalItems: paginationVm.totalItems,
+                hasPrev: paginationVm.hasPrev,
+                hasNext: paginationVm.hasNext,
+                prevPage: paginationVm.prevPage,
+                nextPage: paginationVm.nextPage,
+                pageNumbers: paginationVm.pageNumbers
+            }
         });
     } catch (err) {
         return res.render('promoveraluno', {
             mensagem: 'Erro ao carregar alunos: ' + err.message,
             tipoMensagem: 'danger',
-            usuarios: []
+            usuarios: [],
+            pagination: emptyPagination
         });
     }
 });

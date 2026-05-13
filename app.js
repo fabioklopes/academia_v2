@@ -2183,6 +2183,7 @@ app.get('/aluno', async (req, res) => {
 
         res.render('aluno', {
             mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info',
             usuarios: usuariosPaginados,
             hasProfessorPrivileges,
             searchTerm,
@@ -2202,6 +2203,7 @@ app.get('/aluno', async (req, res) => {
     } catch (err) {
         res.render('aluno', {
             mensagem: 'Erro ao carregar alunos: ' + err.message,
+            tipoMensagem: req.query.tipo || 'info',
             usuarios: [],
             hasProfessorPrivileges,
             searchTerm,
@@ -3241,6 +3243,144 @@ app.post('/aluno/status/:id', async (req, res) => {
         });
     } catch (err) {
         return res.status(500).json({ error: 'Erro ao atualizar status: ' + err.message });
+    }
+});
+
+async function verifyUsuarioPasswordPlain(usuarioRow, plainPassword) {
+    if (!usuarioRow || plainPassword == null) {
+        return false;
+    }
+    const pwd = usuarioRow.password;
+    if (typeof pwd === 'string' && pwd.startsWith('$argon2')) {
+        try {
+            return await argon2.verify(pwd, plainPassword);
+        } catch (_e) {
+            return false;
+        }
+    }
+    return pwd === plainPassword;
+}
+
+async function deleteStudentUserAndRelatedRows(usuario, transaction) {
+    const userCode = String(usuario.user_code || '').trim();
+    if (!userCode) {
+        throw new Error('Código de usuário inválido.');
+    }
+
+    const mensagensCriadas = await MensagemProfessor.findAll({
+        where: { created_by: userCode },
+        attributes: ['id'],
+        transaction
+    });
+    const msgIds = mensagensCriadas.map((m) => m.id).filter((id) => Number.isInteger(id));
+    if (msgIds.length) {
+        await MensagemProfessorLeitura.destroy({ where: { message_id: { [Op.in]: msgIds } }, transaction });
+        await MensagemProfessorOcultacao.destroy({ where: { message_id: { [Op.in]: msgIds } }, transaction });
+        await MensagemProfessor.destroy({ where: { id: { [Op.in]: msgIds } }, transaction });
+    }
+
+    await MensagemProfessorLeitura.destroy({ where: { user_code: userCode }, transaction });
+    await MensagemProfessorOcultacao.destroy({ where: { user_code: userCode }, transaction });
+    await Notificacao.destroy({ where: { user_code: userCode }, transaction });
+    await Presenca.destroy({
+        where: {
+            [Op.or]: [{ user_code: userCode }, { processed_by: userCode }]
+        },
+        transaction
+    });
+    await TurmaAluno.destroy({ where: { user_code: userCode }, transaction });
+    await AppActivityLog.destroy({ where: { user_code: userCode }, transaction });
+
+    const metasDoAluno = await MetaAula.findAll({
+        where: { created_by: userCode },
+        attributes: ['id'],
+        transaction
+    });
+    const metaIds = metasDoAluno.map((m) => m.id).filter((id) => Number.isInteger(id));
+    if (metaIds.length) {
+        await MetaAulaTurma.destroy({ where: { meta_id: { [Op.in]: metaIds } }, transaction });
+        await MetaAula.destroy({ where: { id: { [Op.in]: metaIds } }, transaction });
+    }
+
+    await usuario.destroy({ transaction });
+}
+
+app.post('/aluno/excluir/:id', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.status(403).json({ ok: false, error: 'Acesso não permitido.' });
+    }
+
+    const alunoId = parseInt(req.params.id, 10);
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+
+    if (!Number.isInteger(alunoId) || alunoId <= 0) {
+        return res.status(400).json({ ok: false, error: 'Aluno inválido.' });
+    }
+    if (!password) {
+        return res.status(400).json({ ok: false, error: 'Informe a sua senha para confirmar a exclusão.' });
+    }
+
+    try {
+        const actor = await Usuario.findByPk(req.session.usuario.id);
+        if (!actor) {
+            return res.status(401).json({ ok: false, error: 'Sessão inválida. Faça login novamente.' });
+        }
+
+        const senhaOk = await verifyUsuarioPasswordPlain(actor, password);
+        if (!senhaOk) {
+            return res.status(401).json({ ok: false, error: 'Senha incorreta.' });
+        }
+
+        const aluno = await Usuario.findByPk(alunoId);
+        if (!aluno) {
+            return res.status(404).json({ ok: false, error: 'Aluno não encontrado.' });
+        }
+
+        if (aluno.role !== 'STD') {
+            return res.status(400).json({ ok: false, error: 'Somente cadastros de aluno (perfil aluno) podem ser excluídos por esta ação.' });
+        }
+
+        if (String(aluno.id) === String(req.session.usuario.id)) {
+            return res.status(400).json({ ok: false, error: 'Não é permitido excluir o próprio usuário.' });
+        }
+
+        const vinculados = await Usuario.count({
+            where: { responsible_id: aluno.id }
+        });
+        if (vinculados > 0) {
+            return res.status(400).json({
+                ok: false,
+                error: 'Este usuário possui dependentes vinculados. Ajuste ou exclua os dependentes antes de excluir este cadastro.'
+            });
+        }
+
+        const userIdForFiles = aluno.id;
+        const photoPath = aluno.photo;
+
+        await sequelize.transaction(async (transaction) => {
+            await deleteStudentUserAndRelatedRows(aluno, transaction);
+        });
+
+        try {
+            if (isTempPhotoPath(photoPath)) {
+                const fileName = getFileNameFromPhotoPath(photoPath);
+                if (fileName) {
+                    const filePath = path.join(uploadsDir, fileName);
+                    if (fs.existsSync(filePath)) {
+                        await fs.promises.unlink(filePath);
+                    }
+                }
+            } else {
+                await removeExistingUserImages(userIdForFiles);
+            }
+        } catch (fileErr) {
+            console.error('Erro ao remover arquivos de foto do aluno excluído:', fileErr.message);
+        }
+
+        return res.status(200).json({ ok: true, message: 'Aluno e dados vinculados excluídos com sucesso.' });
+    } catch (err) {
+        console.error('Erro ao excluir aluno:', err);
+        return res.status(500).json({ ok: false, error: err.message || 'Erro ao excluir aluno.' });
     }
 });
 

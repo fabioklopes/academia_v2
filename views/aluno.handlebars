@@ -509,6 +509,9 @@
 
             <div class="modal-footer d-block text-center">
                 {{#if hasProfessorPrivileges}}
+                <div class="mb-3 text-center d-none" id="alunoExcluirWrap">
+                    <button type="button" class="btn text-bg-danger" id="btnAlunoExcluir">Excluir Aluno</button>
+                </div>
                 <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
                     <span class="aluno-detail-label">Status de professor:</span>
                     <div class="form-check form-switch" id="alunoProfessorSwitchContainer">
@@ -598,6 +601,46 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalAlunoExcluirConfirmar" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalAlunoExcluirConfirmarLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="modalAlunoExcluirConfirmarLabel"><b>Atenção:</b></h2>
+            </div>
+            <div class="modal-body">
+                <div id="alunoExcluirConfirmBody" class="alert alert-warning mb-0" role="alert"></div>
+            </div>
+            <div class="modal-footer flex-column align-items-stretch">
+                <p class="text-center mb-3"><b>Deseja confirmar a exclusão?</b></p>
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnAlunoExcluirConfirmar">Confirmo a exclusão</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAlunoExcluirSenha" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalAlunoExcluirSenhaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="modalAlunoExcluirSenhaLabel">Confirmar exclusão</h2>
+            </div>
+            <div class="modal-body">
+                <p class="text-body-secondary small mb-2">Digite a senha do professor que está excluindo o aluno.</p>
+                <label for="alunoExcluirSenhaInput" class="form-label">Senha</label>
+                <input type="password" class="form-control" id="alunoExcluirSenhaInput" autocomplete="current-password">
+                <div class="alert alert-danger mt-3 d-none" id="alunoExcluirSenhaErro" role="alert"></div>
+            </div>
+            <div class="modal-footer d-flex justify-content-center gap-2">
+                <button type="button" class="btn btn-secondary" id="btnAlunoExcluirSenhaCancelar" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnAlunoExcluirSenhaEnviar">Confirmar exclusão</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     (function() {
         const modal = document.getElementById('alunoModal');
@@ -652,6 +695,7 @@
         });
 
         let lastTrigger = null;
+        let showExcluirConfirmAfterAlunoModalHidden = false;
 
         const setText = (id, value) => {
             const el = document.getElementById(id);
@@ -776,6 +820,11 @@
                 }
             }
 
+            const excluirWrap = document.getElementById('alunoExcluirWrap');
+            if (excluirWrap) {
+                excluirWrap.classList.toggle('d-none', roleCode !== 'STD');
+            }
+
             const modalBeltImage = document.getElementById('modalAlunoBeltImage');
             if (modalBeltImage) {
                 const beltImagePath = trigger.getAttribute('data-belt-image') || '/img/belts/white_0.png';
@@ -800,6 +849,14 @@
 
         modal.addEventListener('hidden.bs.modal', function() {
             closeAlunoAvatarLightbox();
+            if (showExcluirConfirmAfterAlunoModalHidden) {
+                showExcluirConfirmAfterAlunoModalHidden = false;
+                const elConfirm = document.getElementById('modalAlunoExcluirConfirmar');
+                if (elConfirm && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(elConfirm).show();
+                }
+                return;
+            }
             if (lastTrigger && document.contains(lastTrigger) && typeof lastTrigger.focus === 'function') {
                 lastTrigger.focus();
             }
@@ -898,6 +955,152 @@
                     this.checked = originalStatus === 'A';
                 }
             });
+        }
+
+        let pendingExcluirAlunoId = null;
+        let abrirSenhaAposFecharConfirm = false;
+
+        const btnAlunoExcluir = document.getElementById('btnAlunoExcluir');
+        const modalAlunoExcluirConfirmar = document.getElementById('modalAlunoExcluirConfirmar');
+        const modalAlunoExcluirSenha = document.getElementById('modalAlunoExcluirSenha');
+        const alunoExcluirConfirmBody = document.getElementById('alunoExcluirConfirmBody');
+        const btnAlunoExcluirConfirmar = document.getElementById('btnAlunoExcluirConfirmar');
+        const alunoExcluirSenhaInput = document.getElementById('alunoExcluirSenhaInput');
+        const alunoExcluirSenhaErro = document.getElementById('alunoExcluirSenhaErro');
+        const btnAlunoExcluirSenhaEnviar = document.getElementById('btnAlunoExcluirSenhaEnviar');
+
+        function hideSenhaExcluirErro() {
+            if (!alunoExcluirSenhaErro) {
+                return;
+            }
+            alunoExcluirSenhaErro.textContent = '';
+            alunoExcluirSenhaErro.classList.add('d-none');
+        }
+
+        function showSenhaExcluirErro(msg) {
+            if (!alunoExcluirSenhaErro) {
+                return;
+            }
+            alunoExcluirSenhaErro.textContent = msg;
+            alunoExcluirSenhaErro.classList.remove('d-none');
+        }
+
+        if (btnAlunoExcluir && modalAlunoExcluirConfirmar && alunoExcluirConfirmBody) {
+            btnAlunoExcluir.addEventListener('click', function() {
+                if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                    return;
+                }
+                const t = lastTrigger;
+                if (!t) {
+                    return;
+                }
+                const roleCode = (t.getAttribute('data-role-code') || '').trim().toUpperCase();
+                if (roleCode !== 'STD') {
+                    return;
+                }
+                const id = t.getAttribute('data-id');
+                const firstName = t.getAttribute('data-first-name') || '';
+                const lastName = t.getAttribute('data-last-name') || '';
+                const fullName = (firstName + ' ' + lastName).trim() || 'aluno';
+                pendingExcluirAlunoId = id;
+                const texto = 'Se confirmar a exclusão do aluno ' + fullName + ' todas as informações (inclusive seu cadastro) serão perdidas. O aluno não terá mais acesso ao sistema a não ser que uma nova solicitação de acesso seja aprovada.';
+                alunoExcluirConfirmBody.textContent = texto;
+                showExcluirConfirmAfterAlunoModalHidden = true;
+                const alunoModalInst = bootstrap.Modal.getInstance(modal) || bootstrap.Modal.getOrCreateInstance(modal);
+                alunoModalInst.hide();
+            });
+
+            if (btnAlunoExcluirConfirmar && modalAlunoExcluirSenha) {
+                btnAlunoExcluirConfirmar.addEventListener('click', function() {
+                    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                        return;
+                    }
+                    hideSenhaExcluirErro();
+                    abrirSenhaAposFecharConfirm = true;
+                    const inst = bootstrap.Modal.getInstance(modalAlunoExcluirConfirmar)
+                        || bootstrap.Modal.getOrCreateInstance(modalAlunoExcluirConfirmar);
+                    inst.hide();
+                });
+
+                modalAlunoExcluirConfirmar.addEventListener('hidden.bs.modal', function() {
+                    if (abrirSenhaAposFecharConfirm) {
+                        abrirSenhaAposFecharConfirm = false;
+                        if (alunoExcluirSenhaInput) {
+                            alunoExcluirSenhaInput.value = '';
+                        }
+                        hideSenhaExcluirErro();
+                        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                            bootstrap.Modal.getOrCreateInstance(modalAlunoExcluirSenha).show();
+                        }
+                        requestAnimationFrame(function() {
+                            if (alunoExcluirSenhaInput) {
+                                alunoExcluirSenhaInput.focus();
+                            }
+                        });
+                        return;
+                    }
+                    pendingExcluirAlunoId = null;
+                });
+            }
+
+            if (btnAlunoExcluirSenhaEnviar && alunoExcluirSenhaInput) {
+                async function enviarExclusaoAluno() {
+                    hideSenhaExcluirErro();
+                    const pw = alunoExcluirSenhaInput.value;
+                    if (!pw) {
+                        showSenhaExcluirErro('Informe a senha.');
+                        return;
+                    }
+                    if (!pendingExcluirAlunoId) {
+                        showSenhaExcluirErro('Sessão de exclusão inválida. Feche e tente novamente.');
+                        return;
+                    }
+                    btnAlunoExcluirSenhaEnviar.disabled = true;
+                    try {
+                        const res = await fetch('/aluno/excluir/' + encodeURIComponent(pendingExcluirAlunoId), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: pw })
+                        });
+                        const data = await res.json().catch(function() { return {}; });
+                        if (!res.ok || !data.ok) {
+                            throw new Error(data.error || 'Não foi possível excluir o aluno.');
+                        }
+                        if (typeof bootstrap !== 'undefined' && bootstrap.Modal && modalAlunoExcluirSenha) {
+                            const senhaInst = bootstrap.Modal.getInstance(modalAlunoExcluirSenha);
+                            if (senhaInst) {
+                                senhaInst.hide();
+                            }
+                        }
+                        const msg = data.message || 'Aluno excluído com sucesso.';
+                        window.location.href = '/aluno?mensagem=' + encodeURIComponent(msg) + '&tipo=sucesso';
+                    } catch (e) {
+                        showSenhaExcluirErro(e.message || 'Erro ao excluir.');
+                    } finally {
+                        btnAlunoExcluirSenhaEnviar.disabled = false;
+                    }
+                }
+
+                btnAlunoExcluirSenhaEnviar.addEventListener('click', function() {
+                    enviarExclusaoAluno();
+                });
+
+                alunoExcluirSenhaInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        enviarExclusaoAluno();
+                    }
+                });
+            }
+
+            if (modalAlunoExcluirSenha) {
+                modalAlunoExcluirSenha.addEventListener('hidden.bs.modal', function() {
+                    hideSenhaExcluirErro();
+                    if (alunoExcluirSenhaInput) {
+                        alunoExcluirSenhaInput.value = '';
+                    }
+                });
+            }
         }
 
     })();

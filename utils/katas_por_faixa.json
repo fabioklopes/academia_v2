@@ -1,0 +1,240 @@
+{
+    "white": {
+        "title": "Kata da Faixa Branca",
+        "description": "Movimentações para o Kata da Faixa Branca",
+        "moviments": {
+            "1_degree_moviments": {
+                "moviment_1": "1 queda com nomenclatura",
+                "moviment_2": "1 abertura de guarda + passagem de guarda",
+                "moviment_3": "1 raspagem de guarda fechada",
+                "moviment_4": "1 armlock da montada",
+                "moviment_5": "1 estrangulamento da montada",
+                "moviment_6": "1 triângulo",
+                "moviment_7": "1 omoplata",
+                "moviment_8": "1 Kimura",
+                "moviment_9": "1 mata-leão",
+                "moviment_10": "1 chamada para a guarda",
+                "moviment_11": "1 sequência de luta (pontos + finalização)"
+            },
+            "2_degree_moviments": {
+                "moviment_1": "1 reposição do 100Kg para a meia-guarda",
+                "moviment_2": "1 reposição do 100Kg para a guarda fechada",
+                "moviment_3": "1 raspagem de meia-guarda",
+                "moviment_4": "1 passagem de meia-guarda",
+                "moviment_5": "1 americana",
+                "moviment_6": "1 estrangulamento katagatame",
+                "moviment_7": "1 estrangulamento das costas",
+                "moviment_8": "1 armlock da guarda fechada",
+                "moviment_9": "1 variação de triângulo para omoplata",
+                "moviment_10": "1 chamada para a guarda",
+                "moviment_11": "1 sequência de luta (pontos + finalização)"
+            },
+            "3_degree_moviments": {
+                "moviment_1": "2 estrangulamentos da guarda fechada",
+                "moviment_2": "1 estrangulamento de lapela",
+                "moviment_3": "1 ida para as costas",
+                "moviment_4": "1 armlock das costas",
+                "moviment_5": "1 saída das costas",
+                "moviment_6": "1 defesa de Armlock da guarda",
+                "moviment_7": "1 defesa de triângulo",
+                "moviment_8": "1 defesa de omoplata",
+                "moviment_9": "1 chave de pé reta",
+                "moviment_10": "1 sequência de luta (pontos + finalização)"
+            },
+            "4_degree_moviments": {
+                "moviment_1": "Todos os movimentos anteriores",
+                "moviment_2": "1 sequência de luta (pontos + finalização)"
+            }
+        }
+    },
+    "blue": {
+        "title": "Kata da Faixa Azul",
+        "description": "Movimentações para o Kata da Faixa Azul",
+        "moviments": {
+            "0_degree_moviments": {
+                "moviment_1": "3 quedas com nomenclatura",
+                "moviment_2": "3 Finalizações da guarda fechada",
+                "moviment_3": "2 Defesas de Armlock",
+                "moviment_4": "1 Defesa de triângulo",
+                "moviment_5": "1 Omoplata",
+                "moviment_6": "1 Defesa de omoplata",
+                "moviment_7": "2 Raspagens de meia guarda",
+                "moviment_8": "2 Raspagens de guarda fechada",
+                "moviment_9": "2 Raspagens da guarda de la riva",
+                "moviment_10": "2 Passagens de meia guarda",
+                "moviment_11": "2 Passagens de guarda fechada",
+                "moviment_12": "2 Passagens de guarda de la riva",
+                "moviment_13": "3 Finalizações da lateral 100 kg",
+                "moviment_14": "2 Saídas da lateral 100 kg",
+                "moviment_15": "3 Finalizações das costas",
+                "moviment_16": "1 Saída das costas",
+                "moviment_17": "1 Finalização partindo do quatro apoios",
+                "moviment_18": "1 Saída do quatro apoios",
+                "moviment_19": "1 Saída do quatro apoios",
+                "moviment_20": "2 Saídas da montada",
+                "moviment_21": "1 Mão de vaca",
+                "moviment_22": "1 Chave de pé reta",
+                "moviment_27": "1 sequência de luta (pontos + finalização)"
+            },
+            "1_degree_moviments": {
+                "moviment_1": "2 quedas (com nomenclatura)",
+                "moviment_2": "1 abertura de guarda em pé",
+                "moviment_3": "1 passagem de guarda aranha",
+                "moviment_4": "Controle lateral + Joelho na bariga + Montada",
+                "moviment_5": "3 finalizações da montada",
+                "moviment_6": "1 saída da norte-sul",
+                "moviment_7": "1 raspagem da guarda aranha",
+                "moviment_8": "1 raspagem da guarda borboleta terminando em montada",
+                "moviment_9": "1 chamada para a guarda",
+                "moviment_10": "1 chave de pé reta",
+                "moviment_11": "1 sequência de luta (pontos + finalização)"
+            },
+            "2_degree_moviments": {
+                "moviment_1": "1 armlock da guarda variando para omoplata + raspagem da omoplata",
+                "moviment_2": "3 finalizações da lateral 100Kg",
+                "moviment_3": "2 estrangulamentos da guarda fechada",
+                "moviment_4": "1 saída da montada repondo a meia-guarda",
+                "moviment_5": "1 ida para as costas partindo da guarda fechada",
+                "moviment_6": "1 saída das costas",
+                "moviment_7": "1 raspagem da 'Guarda Aranha'",
+                "moviment_8": "1 raspagem da 'Guarda One Leg'",
+                "moviment_9": "2 tipos de chamada na guarda",
+                "moviment_10": "1 sequência de luta (pontos + finalização)"
+            },
+            "3_degree_moviments": {
+                "moviment_1": "1 defesa da chave reta de pé",
+                "moviment_2": "1 armlock da montada com finalização na mão de vaca",
+                "moviment_3": "1 ida para as costas partindo da 'Guarda X'",
+                "moviment_4": "1 reposição da montada indo para a 'Guarda Borboleta'",
+                "moviment_5": "1 saída das costas terminando na meia-guarda",
+                "moviment_6": "3 tipos de chamada na guarda",
+                "moviment_7": "1 armlock das costas",
+                "moviment_8": "1 variação de armlock para omoplata seguindo para o triângulo",
+                "moviment_9": "1 sequência de luta (pontos + finalização)"
+            },
+            "4_degree_moviments": {
+                "moviment_1": "1 defesa de triângulo com passagem de guarda",
+                "moviment_2": "1 Kimura de 100Kg com variação para o armlock",
+                "moviment_3": "1 triângulo da montada",
+                "moviment_4": "1 defesa do omoplata passando a guarda",
+                "moviment_5": "1 armlock da 'Guarda Aranha'",
+                "moviment_6": "2 raspagens da 'Guarda Aranha'",
+                "moviment_7": "1 triângulo partindo do 100Kg",
+                "moviment_8": "3 chamadas na guarda variando para raspagem",
+                "moviment_9": "1 sequência de luta (pontos + finalização)"
+            }
+        }
+    },
+    "purple": {
+        "title": "Kata da Faixa Roxa",
+        "description": "Movimentações para o Kata da Faixa Roxa",
+        "moviments": {
+            "0_degree_moviments": {
+                "moviment_1": "6 quedas (com nomenclatura)",
+                "moviment_2": "6 Finalizações da guarda fechada",
+                "moviment_3": "2 raspagens da 'Guarda X'",
+                "moviment_4": "2 raspagens da 'Guarda Borboleta'",
+                "moviment_5": "2 raspagens da 'Guarda Laçada'",
+                "moviment_6": "2 passagens da 'Guarda X'",
+                "moviment_7": "2 passagens da 'Guarda Borboleta'",
+                "moviment_8": "2 passagens da 'Guarda Laçada'",
+                "moviment_9": "3 defesas do armlock",
+                "moviment_10": "2 defesas do triângulo",
+                "moviment_11": "3 idas para as costas",
+                "moviment_12": "4 finalizações da lateral 100 kg",
+                "moviment_13": "5 finalizações das costas",
+                "moviment_14": "2 saída das costas",
+                "moviment_15": "2 finalizações partindo do quatro apoios",
+                "moviment_16": "2 saídas do quatro apoios",
+                "moviment_17": "5 finalizações da montada",
+                "moviment_18": "5 saídas da montada",
+                "moviment_19": "3 variações de mão de vaca",
+                "moviment_20": "3 ataques de chave reta de pé",
+                "moviment_21": "2 defesas de chave reta de pé",
+                "moviment_22": "2 defesas pessoais",
+                "moviment_23": "1 sequência de luta (pontos + finalização)"
+            },
+            "1_degree_moviments": {
+                "moviment_1": "1 ida para a montada partindo do omoplata",
+                "moviment_2": "2 berimbolos",
+                "moviment_3": "1 armdrag",
+                "moviment_4": "3 estrangulamentos das costas",
+                "moviment_5": "1 saída das costas terminando no 100Kg",
+                "moviment_6": "2 triângulos partindo do 100Kg",
+                "moviment_7": "1 triângulo de mão",
+                "moviment_8": "1 guilhotina",
+                "moviment_9": "1 sequência de luta (pontos + finalização)"
+            },
+            "2_degree_moviments": {
+                "moviment_1": "1 estrangulamento com a lapela do oponente",
+                "moviment_2": "1 abertura de passagem de guarda em pé com passagem de guarda terminando com joelho na barriga",
+                "moviment_3": "1 triângulo partindo do joelho na barriga",
+                "moviment_4": "2 finalizações da 'Fifty-Fifty'",
+                "moviment_5": "3 raspagens de meia-guarda profunda",
+                "moviment_6": "1 variação de raspagem da 'Guarda De La Riva' para single leg",
+                "moviment_7": "1 variação de omoplata partindo da 'Guarda Laçada'",
+                "moviment_8": "1 estrangulamento do norte-sul",
+                "moviment_9": "1 ida para as costas partindo da norte-sul",
+                "moviment_10": "1 saída das costas terminando na meia-guarda"
+            },
+            "3_degree_moviments": {
+                "moviment_1": "1 transição da meia-guarda para a meia-guarda invertida",
+                "moviment_2": "2 passagens da meia-guarda invertida",
+                "moviment_3": "1 ida para as costas partindo da meia-guarda invertida",
+                "moviment_4": "1 chamada para a 'Guarda X'",
+                "moviment_5": "1 passagem da 'Guarda X'",
+                "moviment_6": "1 estrangulamento partindo do 100Kg utilizando o próprio kimono",
+                "moviment_7": "1 'Estrangulamento relógio' do 100Kg e 4 apoios",
+                "moviment_8": "1 raspagem da guarda fechada com o oponente em pé",
+                "moviment_9": "1 raspagem partindo do triângulo",
+                "moviment_10": "1 sequência de luta (pontos + finalização)"
+            },
+            "4_degree_moviments": {
+                "moviment_1": "1 sequência de luta (pontos + finalização)",
+                "moviment_2": "1 omoplata partindo da meia-guarda",
+                "moviment_3": "3 estrangulamentos da meia-guarda por baixo e por cima",
+                "moviment_4": "3 variações de mão de vaca",
+                "moviment_5": "2 raspagens partindo da 'De La Riva'",
+                "moviment_6": "2 passagens partindo da 'De La Riva'",
+                "moviment_7": "Ida para as costas da meia-guarda invertida",
+                "moviment_8": "1 raspagem 'cadeirinha' da meia-guarda profunda",
+                "moviment_9": "1 passagem da meia-guarda profunda"
+            }
+        }
+    },
+    "brown": {
+        "title": "Kata da Faixa Marrom",
+        "description": "Movimentações para o Kata da Faixa Marrom",
+        "moviments": {
+            "0_degree_moviments": {
+                "moviment_1": "10 quedas (com nomenclatura)",
+                "moviment_2": "2 raspagens da 'Guarda One Leg'",
+                "moviment_3": "2 raspagens da 'Guarda Aranha'",
+                "moviment_4": "2 raspagens da 'Guarda Lapela'",
+                "moviment_5": "2 raspagens de meia-guarda profunda",
+                "moviment_6": "2 raspagens da 'Fifty-Fifty'",
+                "moviment_7": "2 passagens da 'Guarda One Leg'",
+                "moviment_8": "2 passagens da 'Guarda Aranha'",
+                "moviment_9": "2 passagens da 'Guarda Lapela'",
+                "moviment_10": "2 passagens de meia-guarda profunda",
+                "moviment_11": "2 passagens da guarda 'Fifty-Fifty'",
+                "moviment_12": "4 idas para as costas",
+                "moviment_13": "5 finalizações da lateral 100Kg",
+                "moviment_14": "6 finalizações das costas",
+                "moviment_15": "3 saídas das costas",
+                "moviment_16": "3 finalizações partindo do 4 apoios",
+                "moviment_17": "3 saídas do 4 apoios",
+                "moviment_18": "6 finalizações da montada",
+                "moviment_19": "4 saídas da montada",
+                "moviment_20": "4 variações de mão de vaca",
+                "moviment_21": "4 variações de chave reta de pé",
+                "moviment_22": "1 chave de joelho",
+                "moviment_23": "1 chave de panturrilha",
+                "moviment_24": "1 americana no pé",
+                "moviment_25": "1 chave de bíceps",
+                "moviment_26": "4 defesas pessoais",
+                "moviment_27": "1 sequência de luta (pontos + finalização)"
+            }
+        }
+    }
+}

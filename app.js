@@ -84,6 +84,7 @@ const { exportStudentsToXlsx, exportStudentsToPdf } = require('./services/studen
 const { getPasswordResetTransportConfig } = require('./services/mail_transport');
 const { buildEmailChangeConfirmLink } = require('./services/public_app_links');
 const { registerAuthRoutes } = require('./routes/auth');
+const katasPorFaixaData = require('./utils/katas_por_faixa.json');
 
 // Usado em meuperfil, redefinição de e-mail e fluxos com token
 const crypto = require('crypto');
@@ -4780,6 +4781,18 @@ app.post('/presenca/cancelar/:id', async (req, res) => {
     } catch (err) {
         return res.json({ ok: false, mensagem: 'Erro ao cancelar: ' + err.message });
     }
+});
+
+app.get('/katas-movimentos', (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        const mensagem = 'Apenas alunos podem acessar esta página.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    return res.render('katas_movimentos', {
+        katasJson: JSON.stringify(katasPorFaixaData)
+    });
 });
 
 app.get('/notificacoes', async (req, res) => {

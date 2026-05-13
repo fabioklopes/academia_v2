@@ -60,12 +60,16 @@ async function main() {
     process.exit(0);
 }
 
-main().catch(async (err) => {
-    console.error('Erro na migração:', err.message);
-    try {
-        await sequelize.close();
-    } catch (_e) {
-        // ignore
-    }
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(async (err) => {
+        console.error('Erro na migração:', err.message);
+        try {
+            await sequelize.close();
+        } catch (_e) {
+            // ignore
+        }
+        process.exit(1);
+    });
+}
+
+module.exports = { main, columnExists, addColumnIfMissing, TABLE };

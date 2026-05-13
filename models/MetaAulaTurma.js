@@ -34,6 +34,8 @@ MetaAulaTurma.associate = (models) => {
     });
 };
 
-MetaAulaTurma.sync({ alter: true });
+if (process.env.NODE_ENV !== 'test') {
+    MetaAulaTurma.sync({ alter: true });
+}
 
 module.exports = MetaAulaTurma;

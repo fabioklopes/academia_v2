@@ -81,5 +81,9 @@ async function createFakeUsers(quantity = 10) {
     }
 }
 
-const quantity = parseInt(process.argv[2]) || 10;
-createFakeUsers(quantity);
+if (require.main === module) {
+    const quantity = parseInt(process.argv[2]) || 10;
+    createFakeUsers(quantity);
+}
+
+module.exports = { createFakeUsers, randomFrom, randomPhone, randomDegreeForBelt, randomBirthDate };

@@ -63,16 +63,20 @@ async function main() {
   console.log(turma.get({ plain: true }));
 }
 
-main()
-  .catch((err) => {
-    console.error('Falha ao criar turma:', err);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    try {
-      await sequelize.close();
-    } catch (_e) {
-      // ignore
-    }
-  });
+if (require.main === module) {
+  main()
+    .catch((err) => {
+      console.error('Falha ao criar turma:', err);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      try {
+        await sequelize.close();
+      } catch (_e) {
+        // ignore
+      }
+    });
+}
+
+module.exports = { generateUniqueClassCode, ensureAdminUser, main };
 

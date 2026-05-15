@@ -315,7 +315,6 @@ const BELT_MAP = BELT_OPTIONS.reduce((acc, option) => {
 }, {});
 
 const BIRTHDAY_MESSAGE_FILE_CANDIDATES = [
-    path.join(__dirname, 'utils', 'frases_aniversariantes.txt'),
     path.join(__dirname, 'utils', 'frases_aniversario.txt')
 ];
 

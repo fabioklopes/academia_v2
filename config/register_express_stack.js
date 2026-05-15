@@ -4,6 +4,8 @@ const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const session = require('express-session');
+const { SESSION_IDLE_TIMEOUT_MS } = require('./constants');
+const { createSessionIdleTimeoutMiddleware } = require('../middleware/session_idle_timeout');
 const { setupExpressViews } = require('./views_handlebars');
 
 const projectRoot = path.join(__dirname, '..');
@@ -30,13 +32,15 @@ function registerExpressStack(app, { engine, moment, isProduction, sessionSecret
         secret: sessionSecret || 'oss_session_secret_dev',
         resave: false,
         saveUninitialized: false,
+        rolling: true,
         cookie: {
             httpOnly: true,
             sameSite: 'lax',
             secure: isProduction,
-            maxAge: 1000 * 60 * 60 * 8
+            maxAge: SESSION_IDLE_TIMEOUT_MS
         }
     }));
+    app.use(createSessionIdleTimeoutMiddleware());
 
     setupExpressViews(app, { engine, moment });
 }

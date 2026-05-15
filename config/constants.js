@@ -5,9 +5,20 @@ const RESET_TOKEN_TTL_MS = RESET_TOKEN_TTL_MINUTES * 60 * 1000;
 
 const EMAIL_CHANGE_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 
+const SESSION_IDLE_TIMEOUT_MINUTES = 10;
+const SESSION_IDLE_TIMEOUT_MS = (() => {
+    const fromEnv = Number(process.env.SESSION_IDLE_TIMEOUT_MS);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) {
+        return fromEnv;
+    }
+    return SESSION_IDLE_TIMEOUT_MINUTES * 60 * 1000;
+})();
+
 module.exports = {
     APP_ACTIVITY_LOG_ACTIONS,
     RESET_TOKEN_TTL_MINUTES,
     RESET_TOKEN_TTL_MS,
-    EMAIL_CHANGE_TOKEN_TTL_MS
+    EMAIL_CHANGE_TOKEN_TTL_MS,
+    SESSION_IDLE_TIMEOUT_MINUTES,
+    SESSION_IDLE_TIMEOUT_MS
 };

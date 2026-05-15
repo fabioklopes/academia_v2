@@ -111,6 +111,7 @@ function registerAuthRoutes(app, deps) {
                 email: usuario.email,
                 role: usuario.role
             };
+            req.session.lastActivity = Date.now();
 
             req.session.birthdayLoginModal = buildBirthdayLoginModalData(usuario);
             req.session.motivationalMessage = getRandomMotivationalMessage();

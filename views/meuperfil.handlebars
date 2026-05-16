@@ -1,7 +1,9 @@
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-12 col-lg-8">
-            <h1 class="h3 mb-4">Meu Perfil</h1>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <h1 class="mb-0">Meu Perfil</h1>
+            </div>
 
             {{#if mensagem}}
                 <div class="alert alert-{{#if (eq tipoMensagem 'danger')}}danger{{else}}{{#if (eq tipoMensagem 'success')}}success{{else}}info{{/if}}{{/if}} alert-dismissible fade show" role="alert">
@@ -133,9 +135,9 @@
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title fs-5" id="modalSegurancaRiscoLabel">
+                <h5 class="modal-title" id="modalSegurancaRiscoLabel">
                     <span class="badge text-bg-primary me-2"><i class="fa-solid fa-asterisk" aria-hidden="true"></i></span> Credenciais de acesso
-                </h2>
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">

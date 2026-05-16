@@ -3995,6 +3995,7 @@ app.get('/admin/logs', async (req, res) => {
             return {
                 id: row.id,
                 data_hora_label: at ? moment(at).format('DD/MM/YYYY HH:mm:ss') : '-',
+                data_hora_label_short: at ? moment(at).format('DD/MM/YY HH:mm') : '-',
                 user_code_label: row.user_code ? String(row.user_code).trim() : '—',
                 user_profile_href,
                 action: row.action,

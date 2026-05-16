@@ -56,34 +56,59 @@
         </div>
     </div>
 
-    <div class="table-responsive shadow-sm rounded-3 border bg-body">
-        <table class="table table-hover table-striped mb-0 align-middle">
+    <div class="admin-logs-table-wrap shadow-sm rounded-3 border bg-body">
+        <table class="table table-hover table-striped mb-0 align-middle admin-logs-table">
             <thead class="table-light">
                 <tr>
-                    <th scope="col">ID</th>
-                    <th scope="col">Data/Hora</th>
-                    <th scope="col">Usuário</th>
-                    <th scope="col">Ação</th>
-                    <th scope="col">Endpoint</th>
-                    <th scope="col">Status</th>
+                    <th scope="col" class="d-none d-md-table-cell">ID</th>
+                    <th scope="col" class="admin-logs-col-datetime">Data/Hora</th>
+                    <th scope="col" class="admin-logs-col-user">Usuário</th>
+                    <th scope="col" class="admin-logs-col-action">Ação</th>
+                    <th scope="col" class="d-none d-md-table-cell">Endpoint</th>
+                    <th scope="col" class="admin-logs-col-status">Status</th>
                 </tr>
             </thead>
             <tbody>
                 {{#if logs.length}}
                     {{#each logs}}
-                        <tr>
-                            <td class="text-body-secondary">{{id}}</td>
-                            <td class="text-nowrap">{{data_hora_label}}</td>
-                            <td>
+                        <tr
+                            class="admin-logs-row"
+                            role="button"
+                            tabindex="0"
+                            aria-label="Ver detalhes do registro {{id}}"
+                            data-log-id="{{id}}"
+                            data-log-datetime="{{data_hora_label}}"
+                            data-log-user="{{user_code_label}}"
+                            data-log-user-href="{{user_profile_href}}"
+                            data-log-action="{{action}}"
+                            data-log-endpoint="{{endpoint}}"
+                            data-log-status="{{status}}"
+                            data-log-status-label="{{status_label}}"
+                        >
+                            <td class="text-body-secondary d-none d-md-table-cell">{{id}}</td>
+                            <td class="admin-logs-col-datetime">
+                                <span class="d-md-none">{{data_hora_label_short}}</span>
+                                <span class="d-none d-md-inline text-nowrap">{{data_hora_label}}</span>
+                            </td>
+                            <td class="admin-logs-col-user">
                                 {{#if user_profile_href}}
-                                    <a href="{{user_profile_href}}" class="text-decoration-none" title="Ver ficha completa do cadastro"><code>{{user_code_label}}</code></a>
+                                    <a href="{{user_profile_href}}" class="text-decoration-none admin-logs-user-link" title="Ver ficha completa do cadastro"><code>{{user_code_label}}</code></a>
                                 {{else}}
                                     <code>{{user_code_label}}</code>
                                 {{/if}}
                             </td>
-                            <td><span class="badge bg-secondary-subtle text-secondary-emphasis border">{{action}}</span></td>
-                            <td class="text-break"><small>{{endpoint}}</small></td>
-                            <td class="{{status_class}} fw-semibold">{{status_label}}</td>
+                            <td class="admin-logs-col-action"><span class="badge bg-secondary-subtle text-secondary-emphasis border">{{action}}</span></td>
+                            <td class="text-break d-none d-md-table-cell"><small>{{endpoint}}</small></td>
+                            <td class="admin-logs-col-status">
+                                <span class="d-md-none">
+                                    {{#if (eq status 'SUCESSO')}}
+                                        <span class="badge bg-success" title="Sucesso">S</span>
+                                    {{else}}
+                                        <span class="badge bg-danger" title="Falha">F</span>
+                                    {{/if}}
+                                </span>
+                                <span class="d-none d-md-inline {{status_class}} fw-semibold">{{status_label}}</span>
+                            </td>
                         </tr>
                     {{/each}}
                 {{else}}
@@ -134,7 +159,106 @@
     </div>
 </div>
 
+<div class="modal fade" id="adminLogDetailModal" tabindex="-1" aria-labelledby="adminLogDetailModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="adminLogDetailModalLabel">Detalhes do registro</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-sm-4 text-body-secondary">ID</dt>
+                    <dd class="col-sm-8" id="adminLogModalId">—</dd>
+
+                    <dt class="col-sm-4 text-body-secondary">Data/Hora</dt>
+                    <dd class="col-sm-8 text-nowrap" id="adminLogModalDatetime">—</dd>
+
+                    <dt class="col-sm-4 text-body-secondary">Usuário</dt>
+                    <dd class="col-sm-8" id="adminLogModalUser">—</dd>
+
+                    <dt class="col-sm-4 text-body-secondary">Ação</dt>
+                    <dd class="col-sm-8" id="adminLogModalAction">—</dd>
+
+                    <dt class="col-sm-4 text-body-secondary">Endpoint</dt>
+                    <dd class="col-sm-8 text-break" id="adminLogModalEndpoint">—</dd>
+
+                    <dt class="col-sm-4 text-body-secondary">Status</dt>
+                    <dd class="col-sm-8" id="adminLogModalStatus">—</dd>
+                </dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
+    .admin-logs-row {
+        cursor: pointer;
+    }
+
+    .admin-logs-row:focus-visible {
+        outline: 2px solid var(--bs-primary);
+        outline-offset: -2px;
+    }
+
+    @media (min-width: 768px) {
+        .admin-logs-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .admin-logs-table-wrap {
+            overflow-x: hidden;
+        }
+
+        .admin-logs-table {
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .admin-logs-table th,
+        .admin-logs-table td {
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
+            font-size: 0.875rem;
+        }
+
+        .admin-logs-col-datetime {
+            width: 42%;
+            white-space: nowrap;
+        }
+
+        .admin-logs-col-user {
+            width: 20%;
+            overflow-wrap: anywhere;
+        }
+
+        .admin-logs-col-action {
+            width: 24%;
+            overflow-wrap: anywhere;
+        }
+
+        .admin-logs-col-status {
+            width: 14%;
+            text-align: center;
+        }
+
+        .admin-logs-col-user code {
+            font-size: 0.8em;
+            word-break: break-all;
+        }
+
+        .admin-logs-col-action .badge {
+            font-size: 0.7rem;
+            padding: 0.2em 0.35em;
+        }
+    }
+
     .admin-logs-pagination-inner {
         max-width: 100%;
     }
@@ -157,6 +281,85 @@
                 window.location.href = '{{clearLogsUrl}}';
             });
         }
+
+        const modalEl = document.getElementById('adminLogDetailModal');
+        const logRows = document.querySelectorAll('.admin-logs-row');
+
+        function fillLogDetailModal(row) {
+            const ds = row.dataset;
+            const elId = document.getElementById('adminLogModalId');
+            const elDatetime = document.getElementById('adminLogModalDatetime');
+            const elUser = document.getElementById('adminLogModalUser');
+            const elAction = document.getElementById('adminLogModalAction');
+            const elEndpoint = document.getElementById('adminLogModalEndpoint');
+            const elStatus = document.getElementById('adminLogModalStatus');
+
+            if (elId) elId.textContent = ds.logId || '—';
+            if (elDatetime) elDatetime.textContent = ds.logDatetime || '—';
+
+            if (elUser) {
+                const userCode = ds.logUser || '—';
+                const userHref = ds.logUserHref || '';
+                elUser.replaceChildren();
+                const codeEl = document.createElement('code');
+                codeEl.textContent = userCode;
+                if (userHref) {
+                    const link = document.createElement('a');
+                    link.href = userHref;
+                    link.className = 'text-decoration-none';
+                    link.title = 'Ver ficha completa do cadastro';
+                    link.appendChild(codeEl);
+                    elUser.appendChild(link);
+                } else {
+                    elUser.appendChild(codeEl);
+                }
+            }
+
+            if (elAction) {
+                const action = ds.logAction || '—';
+                elAction.replaceChildren();
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-secondary-subtle text-secondary-emphasis border';
+                badge.textContent = action;
+                elAction.appendChild(badge);
+            }
+
+            if (elEndpoint) elEndpoint.textContent = ds.logEndpoint || '—';
+
+            if (elStatus) {
+                const status = ds.logStatus || '';
+                const statusLabel = ds.logStatusLabel || '—';
+                const isSuccess = status === 'SUCESSO';
+                elStatus.replaceChildren();
+                const badge = document.createElement('span');
+                badge.className = `badge ${isSuccess ? 'bg-success' : 'bg-danger'}`;
+                badge.textContent = statusLabel;
+                elStatus.appendChild(badge);
+            }
+        }
+
+        function openLogDetailModal(row) {
+            if (!modalEl || !window.bootstrap || !bootstrap.Modal) return;
+            fillLogDetailModal(row);
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        logRows.forEach((row) => {
+            row.addEventListener('click', (e) => {
+                if (e.target.closest('a')) return;
+                openLogDetailModal(row);
+            });
+            row.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openLogDetailModal(row);
+                }
+            });
+        });
+
+        document.querySelectorAll('.admin-logs-user-link').forEach((link) => {
+            link.addEventListener('click', (e) => e.stopPropagation());
+        });
 
         const root = document.querySelector('[data-log-pagination-root]');
         if (!root) return;
@@ -194,7 +397,7 @@
         }
 
         const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncPaginationMode()) : null;
-        if (ro && root) ro.observe(root);
+        if (ro) ro.observe(root);
         window.addEventListener('resize', syncPaginationMode);
         syncPaginationMode();
     })();

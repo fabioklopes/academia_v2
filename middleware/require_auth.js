@@ -1,4 +1,9 @@
-// Rotas isentas de verificação de login
+/**
+ * Verifica se o usuário precisa estar logado para acessar a página.
+ * Rotas públicas (login, cadastro, fotos) passam direto; demais redirecionam ao login.
+ */
+
+/** Lista de caminhos que qualquer pessoa pode acessar sem estar logada. */
 function isPublicRoute(pathname) {
     const publicRoutes = new Set([
         '/auth/login',
@@ -14,7 +19,11 @@ function isPublicRoute(pathname) {
     return publicRoutes.has(pathname) || pathname.startsWith('/uploads/');
 }
 
-// Redirecionamento para o login caso não esteja autenticado
+/**
+ * Middleware principal de autenticação.
+ * Se não houver usuário na sessão, manda para a tela de login
+ * guardando a URL original para redirecionar depois.
+ */
 function requireAuth(req, res, next) {
     if (isPublicRoute(req.path)) {
         return next();

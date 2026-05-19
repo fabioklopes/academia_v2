@@ -1,3 +1,8 @@
+/**
+ * Configuração do Multer para upload temporário de fotos de usuário.
+ * Arquivos vão para uploads/users/ com prefixo temp_ até serem processados.
+ */
+
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');

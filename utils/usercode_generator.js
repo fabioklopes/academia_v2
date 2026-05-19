@@ -1,3 +1,7 @@
+/**
+ * Gera código aleatório de 5 caracteres para identificar um usuário.
+ * Evita letras confusas (I, O) e o zero para facilitar leitura.
+ */
 function generateCode(tamanho = 5) {
 	const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // removido "i" e "o"
 	const numeros = "123456789"; // removido "0"

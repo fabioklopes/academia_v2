@@ -1,5 +1,10 @@
 const db = require('./db');
 
+/**
+ * Modelo da tabela tb_usuarios — pessoas do sistema (alunos, professores, admins).
+ * Guarda dados pessoais, faixa, grau, senha, status e vínculo com responsável (dependentes).
+ */
+
 // tb_usuarios
 const Usuario = db.sequelize.define('tb_usuarios', {
     user_code: {

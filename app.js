@@ -1,4 +1,25 @@
-// configurações de ambiente
+/**
+ * ============================================================================
+ * SISTEMA OSS — Aplicação principal (Express)
+ * ============================================================================
+ *
+ * Portal web de gestão de academia de Jiu-jitsu.
+ *
+ * Este arquivo concentra:
+ *   - Registro de middlewares globais
+ *   - Quase todas as rotas HTTP (turmas, alunos, presença, relatórios, etc.)
+ *   - Funções auxiliares de negócio (faixas, aniversário, fotos, presença)
+ *
+ * Rotas de login/logout ficam em routes/auth.js.
+ * Lógica reutilizável está em services/ e lib/pure_helpers.js.
+ *
+ * Papéis de usuário: STD (aluno), PRO (professor), ADM (administrador).
+ *
+ * Documentação completa: DOCUMENTACAO.md
+ * ============================================================================
+ */
+
+// Carrega variáveis do arquivo .env (senha do banco, chave de sessão, etc.)
 require('dotenv').config();
 
 const express = require('express');
@@ -109,6 +130,11 @@ app.use(createAdminLogLocalsMiddleware());
 
 app.use(requireAuth);
 
+// ============================================================================
+// RELATÓRIOS — preparação de dados de alunos
+// ============================================================================
+
+/** Busca todos os alunos do banco e monta os dados formatados para relatórios (nome, faixa, foto, etc.). */
 async function fetchAllStudentsForReports() {
     const usuarios = await Usuario.findAll({
         where: { role: 'STD' },
@@ -140,6 +166,7 @@ async function fetchAllStudentsForReports() {
     });
 }
 
+/** Gera um código de turma de 5 letras/números que ainda não existe no banco. Tenta até 40 vezes. */
 async function generateUniqueClassCode() {
     const maxAttempts = 40;
 
@@ -154,6 +181,7 @@ async function generateUniqueClassCode() {
     throw new Error('Nao foi possivel gerar um codigo unico para a turma. Tente novamente.');
 }
 
+/** Lista turmas ativas para usar em selects de formulário. Marca qual está selecionada. */
 async function getActiveTurmasOptions(selectedClassCode = '') {
     const turmas = await Turma.findAll({
         where: { active: 'Y' },
@@ -170,6 +198,7 @@ async function getActiveTurmasOptions(selectedClassCode = '') {
     });
 }
 
+/** Converte uma data para o formato YYYY-MM-DD usado em campos HTML type="date". */
 function formatDateForInput(dateValue) {
     if (!dateValue) {
         return '';
@@ -219,18 +248,21 @@ const OBI_SIZE_OPTIONS = [
 const KIMONO_SIZE_CODES = new Set(KIMONO_WAGI_ZUBON_SIZE_OPTIONS.map((o) => o.code));
 const OBI_SIZE_CODES = new Set(OBI_SIZE_OPTIONS.map((o) => o.code));
 
+/** Retorna o texto legível do tamanho de kimono (wagi/zubon) a partir do código. */
 function getKimonoWagiZubonSizeLabel(code) {
     const c = String(code || '').trim();
     const hit = KIMONO_WAGI_ZUBON_SIZE_OPTIONS.find((o) => o.code === c);
     return hit ? hit.label : (c || '—');
 }
 
+/** Retorna o texto legível do tamanho do obi (faixa de tecido) a partir do código. */
 function getObiSizeOptionLabel(code) {
     const c = String(code || '').trim();
     const hit = OBI_SIZE_OPTIONS.find((o) => o.code === c);
     return hit ? hit.label : (c || '—');
 }
 
+/** Envia e-mail com link para o aluno confirmar a troca de endereço de e-mail. */
 async function sendProfileEmailChangeConfirmation(req, toEmail, token) {
     const normalized = normalizeEmail(toEmail);
     const link = buildEmailChangeConfirmLink(req, normalized, token);
@@ -261,6 +293,7 @@ async function sendProfileEmailChangeConfirmation(req, toEmail, token) {
     return { deliveryStatus: 'sent', link };
 }
 
+/** Retorna o ID do usuário cujo perfil está sendo editado (titular ou dependente em visualização). */
 function getEffectiveProfileUserId(req) {
     if (!req.session.usuario) {
         return null;
@@ -348,6 +381,11 @@ const MONTH_NAMES_PT_BR = [
     'Dezembro'
 ];
 
+// ============================================================================
+// ANIVERSÁRIO — widget do dashboard e modal no login
+// ============================================================================
+
+/** Carrega frases de “seu aniversário está chegando” do arquivo de texto ou usa padrão. */
 function loadBirthdayLeadMessages() {
     for (const filePath of BIRTHDAY_MESSAGE_FILE_CANDIDATES) {
         try {
@@ -374,6 +412,11 @@ function loadBirthdayLeadMessages() {
 
 const BIRTHDAY_LEAD_MESSAGES = loadBirthdayLeadMessages();
 
+// ============================================================================
+// FAIXAS E GRAUS — validação e exibição
+// ============================================================================
+
+/** Quantos graus uma faixa pode ter: faixa preta vai até 6, as demais até 4. */
 function getMaxDegreeForBelt(actualBelt) {
     return actualBelt === BLACK_BELT_VALUE ? 6 : 4;
 }
@@ -436,6 +479,7 @@ function parseDegree(value) {
     return degree;
 }
 
+/** Monta todos os dados visuais de uma faixa: nome, grau, imagem e texto resumido. */
 function getBeltDisplayData(actualBelt, actualDegree) {
     const beltValue = (actualBelt || '').trim();
     const degree = normalizeDegreeForBelt(beltValue, actualDegree);
@@ -553,6 +597,7 @@ function calculateAgeFromBirthDateParts(parts, todayDate = new Date()) {
     return Math.max(age, 0);
 }
 
+/** Monta a lista de aniversariantes do mês para o widget do dashboard. */
 function buildBirthdayWidgetData(users = [], todayDate = new Date()) {
     const todayDay = todayDate.getDate();
     const todayMonthIndex = todayDate.getMonth();
@@ -667,6 +712,7 @@ function isBirthdayMessagesDisabledForYear(usuario, referenceDate = new Date()) 
     return Number.isInteger(disabledYear) && disabledYear === currentYear;
 }
 
+/** Decide se mostra modal de aniversário no login (hoje ou nos próximos 5 dias). */
 function buildBirthdayLoginModalData(usuario, todayDate = new Date()) {
     if (!usuario || isBirthdayMessagesDisabledForYear(usuario, todayDate)) {
         return null;
@@ -712,6 +758,11 @@ function formatTimestampForFile(dateValue) {
     return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 }
 
+// ============================================================================
+// FOTOS DE USUÁRIO — upload, redimensionamento e limpeza
+// ============================================================================
+
+/** Redimensiona foto para 200x200 px e comprime até caber em 1 MB. */
 async function optimizeImageTo1MB(inputPath, outputPath) {
     const maxBytes = 1048576; // 1MB
     let quality = 90;
@@ -748,6 +799,7 @@ async function removeExistingUserImages(userId) {
     }));
 }
 
+/** Apaga fotos antigas do usuário e salva a nova foto otimizada no disco. */
 async function replaceUserPhoto(usuario, tempFileName) {
     const timestamp = formatTimestampForFile(new Date());
     const finalFileName = `${usuario.id}_${timestamp}.jpg`;
@@ -3661,6 +3713,7 @@ function normalizeDateOnlyToEnd(dateOnlyIso) {
     return new Date(`${dateOnlyIso}T23:59:59.999`);
 }
 
+/** Calcula quantas presenças o aluno já tem na meta vigente e quantas faltam para atingir a meta. */
 async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new Date() } = {}) {
     const normalizedUserCode = String(userCode || '').trim().toUpperCase();
     if (!normalizedUserCode) {
@@ -3772,6 +3825,7 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
     };
 }
 
+/** Monta os dados de uma presença para exibir na tela (data formatada, status legível, tipo de aula). */
 function buildPresencaViewModel(p) {
     const plain = p.get ? p.get({ plain: true }) : p;
     const statusMap = { P: 'Pendente', A: 'Aprovada', N: 'Negada', C: 'Solicitação cancelada' };
@@ -3789,6 +3843,7 @@ function buildPresencaViewModel(p) {
     };
 }
 
+/** Cria notificação in-app quando o professor aprova ou nega uma solicitação de presença. */
 async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { observation } = {}) {
     const vm = buildPresencaViewModel(presencaInstance);
     const dataLabel = vm.request_date_formatted;

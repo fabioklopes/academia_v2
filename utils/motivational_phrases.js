@@ -1,8 +1,14 @@
+/**
+ * Frases motivacionais exibidas no dashboard após o login.
+ * Lidas do arquivo frases_motivacionais.txt na pasta utils.
+ */
+
 const fs = require('fs');
 const path = require('path');
 
 const MOTIVATIONAL_PHRASES_PATH = path.join(__dirname, 'frases_motivacionais.txt');
 
+/** Carrega todas as frases do arquivo de texto. */
 function loadMotivationalPhrases() {
     try {
         return fs.readFileSync(MOTIVATIONAL_PHRASES_PATH, 'utf8')
@@ -17,6 +23,7 @@ function loadMotivationalPhrases() {
 
 const motivationalPhrases = loadMotivationalPhrases();
 
+/** Escolhe uma frase aleatória para mostrar ao usuário no login. */
 function getRandomMotivationalMessage() {
     if (motivationalPhrases.length === 0) {
         return '';

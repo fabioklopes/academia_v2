@@ -1,7 +1,6 @@
 /**
- * Valida telefone celular BR (DDD + 9 dígitos) como string de 11 dígitos numéricos.
- * @param {unknown} raw
- * @returns {{ ok: true, phone: string } | { ok: false, message: string }}
+ * Valida número de celular brasileiro: 11 dígitos (DDD + 9 + 8 dígitos).
+ * Retorna { ok: true, phone } ou { ok: false, message } com texto amigável.
  */
 function validateBrazilMobilePhone(raw) {
     const phoneRaw = String(raw ?? '').trim();

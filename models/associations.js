@@ -1,3 +1,8 @@
+/**
+ * Relacionamentos entre tabelas que o Sequelize precisa conhecer.
+ * Metas ↔ Turmas (N:N) e Notificações → Usuário.
+ */
+
 const Usuario = require('./Usuario');
 const Turma = require('./Turma');
 const MetaAula = require('./MetaAula');

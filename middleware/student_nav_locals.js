@@ -1,5 +1,10 @@
 'use strict';
 
+/**
+ * Prepara dados do menu do aluno: sino de avisos, sino de notificações
+ * e modal de aniversário que aparece no login.
+ */
+
 const { Op } = require('sequelize');
 const Notificacao = require('../models/Notificacao');
 const { getEffectiveUserCode, notificacaoRecipientCodes } = require('../services/effective_user_code');
@@ -9,6 +14,7 @@ const {
     buildStudentMassMessageBellViewModel
 } = require('../services/professor_mass_messages');
 
+/** Cria middleware que roda antes de cada página do aluno. */
 function createStudentNavLocalsMiddleware() {
     return async (req, res, next) => {
         res.locals.birthdayLoginModal = req.session.birthdayLoginModal || null;

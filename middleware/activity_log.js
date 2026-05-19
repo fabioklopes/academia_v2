@@ -1,6 +1,12 @@
+/**
+ * Registra no banco cada ação HTTP feita por usuário logado.
+ * Ignora arquivos estáticos (CSS, JS, imagens) para não poluir o log.
+ */
+
 const AppActivityLog = require('../models/AppActivityLog');
 const { APP_ACTIVITY_LOG_ACTIONS } = require('../config/constants');
 
+/** Caminhos que não precisam ser gravados no log (fotos, CSS, favicon, etc.). */
 function shouldSkipAppActivityLog(req) {
     const p = req.path || '';
     if (p.startsWith('/uploads') || p.startsWith('/css') || p.startsWith('/js') || p.startsWith('/img')) {
@@ -19,6 +25,7 @@ function shouldSkipAppActivityLog(req) {
     return false;
 }
 
+/** Padroniza o método HTTP para gravar no log (GET, POST, etc.). */
 function normalizeAppActivityAction(method) {
     const m = String(method || 'GET').toUpperCase();
     if (APP_ACTIVITY_LOG_ACTIONS.has(m)) {
@@ -27,6 +34,7 @@ function normalizeAppActivityAction(method) {
     return 'GET';
 }
 
+/** Pega o código do usuário logado para associar ao registro do log. */
 function resolveActivityLogUserCode(req) {
     if (!req.session || !req.session.usuario || !req.session.usuario.user_code) {
         return null;
@@ -34,6 +42,7 @@ function resolveActivityLogUserCode(req) {
     return String(req.session.usuario.user_code).trim().substring(0, 5) || null;
 }
 
+/** Cria middleware que grava o log após a resposta ser enviada ao navegador. */
 function createActivityLogMiddleware() {
     return (req, res, next) => {
         if (shouldSkipAppActivityLog(req)) {

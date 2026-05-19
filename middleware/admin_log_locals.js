@@ -1,5 +1,10 @@
 'use strict';
 
+/**
+ * Avisa o administrador quando o log de atividades está quase cheio,
+ * para que ele possa executar a limpeza antes de perder registros.
+ */
+
 const AppActivityLog = require('../models/AppActivityLog');
 const { APP_ACTIVITY_LOG_MAX, APP_ACTIVITY_LOG_WARN_REMAINING_RATIO } = require('../config/constants');
 

@@ -1,5 +1,10 @@
 'use strict';
 
+/**
+ * Ajustes automáticos no banco de dados quando o servidor sobe.
+ * Garante que colunas e tabelas existam sem precisar rodar migrações manuais.
+ */
+
 const Turma = require('../models/Turma');
 const TurmaAluno = require('../models/TurmaAluno');
 const MensagemProfessor = require('../models/MensagemProfessor');
@@ -9,6 +14,7 @@ const AppActivityLog = require('../models/AppActivityLog');
 const Notificacao = require('../models/Notificacao');
 const { sequelize, Sequelize } = require('../models/db');
 
+/** Remove índice UNIQUE do e-mail para permitir mesmo e-mail em titular e dependentes. */
 async function ensureUsuarioEmailNotUnique() {
     const dialect = sequelize.getDialect();
 
@@ -36,6 +42,7 @@ async function ensureUsuarioEmailNotUnique() {
     }
 }
 
+/** Adiciona coluna class_code em tb_usuarios se ainda não existir. */
 async function ensureUsuarioClassCodeColumn() {
     const queryInterface = sequelize.getQueryInterface();
     const tableDescription = await queryInterface.describeTable('tb_usuarios');
@@ -49,6 +56,7 @@ async function ensureUsuarioClassCodeColumn() {
     }
 }
 
+/** Adiciona coluna para o aluno desativar mensagens de aniversário. */
 async function ensureUsuarioBirthdayMessagesDisabledColumn() {
     const queryInterface = sequelize.getQueryInterface();
     const tableDescription = await queryInterface.describeTable('tb_usuarios');
@@ -63,6 +71,7 @@ async function ensureUsuarioBirthdayMessagesDisabledColumn() {
     }
 }
 
+/** Guarda em qual ano o aluno pediu para não ver mais mensagens de aniversário. */
 async function ensureUsuarioBirthdayMessagesDisabledYearColumn() {
     const queryInterface = sequelize.getQueryInterface();
     const tableDescription = await queryInterface.describeTable('tb_usuarios');
@@ -85,6 +94,7 @@ async function ensureUsuarioBirthdayMessagesDisabledYearColumn() {
     );
 }
 
+/** Sincroniza tabelas e adiciona colunas novas em tb_usuarios se faltarem. */
 async function ensureTurmaSchema() {
     await Turma.sync();
     await TurmaAluno.sync();

@@ -106,6 +106,11 @@ const { exportStudentsToXlsx, exportStudentsToPdf } = require('./services/studen
 const { getPasswordResetTransportConfig } = require('./services/mail_transport');
 const { buildEmailChangeConfirmLink } = require('./services/public_app_links');
 const { registerAuthRoutes } = require('./routes/auth');
+const {
+    createIgnitionMiddleware,
+    registerIgnitionRoutes,
+    initializeIgnition
+} = require('./utils/ignition');
 const katasPorFaixaData = require('./utils/katas_por_faixa.json');
 
 // Usado em meuperfil, redefinição de e-mail e fluxos com token
@@ -127,6 +132,9 @@ app.use(dependentsMenuMiddleware);
 
 app.use(createStudentNavLocalsMiddleware());
 app.use(createAdminLogLocalsMiddleware());
+
+registerIgnitionRoutes(app);
+app.use(createIgnitionMiddleware());
 
 app.use(requireAuth);
 
@@ -917,6 +925,9 @@ function buildUserFormViewModel(usuario, isEditMode, turmaOptions = []) {
 // ### CONFIGURAÇÃO DAS ROTAS ###
 // rota principal
 app.get('/', (req, res) => {
+    if (!req.session.usuario) {
+        return res.redirect('/auth/login');
+    }
     return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
 });
 
@@ -5192,20 +5203,22 @@ app.use(createErrorMiddleware({ isProduction }));
 const PORT = process.env.ENV_PORT || 3000;
 
 if (require.main === module) {
-    ensureUsuarioEmailNotUnique()
-        .then(() => {
-            return ensureTurmaSchema();
-        })
-        .then(() => {
+    ensureTurmaSchema()
+        .then(() => ensureUsuarioEmailNotUnique())
+        .then(() => initializeIgnition())
+        .then((needsSetup) => {
             app.listen(PORT, function () {
                 console.clear();
                 console.log('');
                 console.log('\n\nServidor funcionando...');
                 console.log(`Acesse http://localhost:${PORT} para ver o app.`);
+                if (needsSetup) {
+                    console.log(`Configuração inicial pendente: http://localhost:${PORT}/ignition`);
+                }
             });
         })
         .catch((err) => {
-            console.error('Falha ao inicializar ajuste de indice de e-mail:', err.message);
+            console.error('Falha ao inicializar o servidor:', err.message);
             process.exit(1);
         });
 }

@@ -6,7 +6,10 @@ function shouldSkipAppActivityLog(req) {
     if (p.startsWith('/uploads') || p.startsWith('/css') || p.startsWith('/js') || p.startsWith('/img')) {
         return true;
     }
-    if (p === '/favicon.ico') {
+    if (p.startsWith('/.well-known/')) {
+        return true;
+    }
+    if (p === '/favicon.ico' || p === '/robots.txt' || p === '/sitemap.xml') {
         return true;
     }
     const lower = p.toLowerCase();
@@ -24,6 +27,13 @@ function normalizeAppActivityAction(method) {
     return 'GET';
 }
 
+function resolveActivityLogUserCode(req) {
+    if (!req.session || !req.session.usuario || !req.session.usuario.user_code) {
+        return null;
+    }
+    return String(req.session.usuario.user_code).trim().substring(0, 5) || null;
+}
+
 function createActivityLogMiddleware() {
     return (req, res, next) => {
         if (shouldSkipAppActivityLog(req)) {
@@ -35,12 +45,13 @@ function createActivityLogMiddleware() {
         }
 
         res.on('finish', () => {
+            const userCode = resolveActivityLogUserCode(req);
+            if (!userCode) {
+                return;
+            }
+
             const statusCode = Number(res.statusCode) || 500;
             const status = statusCode >= 400 ? 'FALHA' : 'SUCESSO';
-            let userCode = null;
-            if (req.session && req.session.usuario && req.session.usuario.user_code) {
-                userCode = String(req.session.usuario.user_code).trim().substring(0, 5) || null;
-            }
             let endpoint = String(req.originalUrl || req.url || '/').split('?')[0];
             if (endpoint.length > 500) {
                 endpoint = endpoint.slice(0, 500);
@@ -60,4 +71,9 @@ function createActivityLogMiddleware() {
     };
 }
 
-module.exports = { createActivityLogMiddleware };
+module.exports = {
+    createActivityLogMiddleware,
+    shouldSkipAppActivityLog,
+    resolveActivityLogUserCode,
+    normalizeAppActivityAction
+};

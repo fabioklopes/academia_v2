@@ -39,6 +39,7 @@ const {
     markMassMessageAsRead
 } = require('./services/professor_mass_messages');
 const { createStudentNavLocalsMiddleware } = require('./middleware/student_nav_locals');
+const { createAdminLogLocalsMiddleware } = require('./middleware/admin_log_locals');
 const {
     EMAIL_CHANGE_TOKEN_TTL_MS
 } = require('./config/constants');
@@ -104,6 +105,7 @@ app.use(portalLocalsMiddleware);
 app.use(dependentsMenuMiddleware);
 
 app.use(createStudentNavLocalsMiddleware());
+app.use(createAdminLogLocalsMiddleware());
 
 app.use(requireAuth);
 
@@ -4039,11 +4041,30 @@ app.get('/admin/logs', async (req, res) => {
             filter: filterForView,
             userFilterOptions,
             logsQueryStringNoPage,
-            clearLogsUrl: '/admin/logs'
+            clearLogsUrl: '/admin/logs',
+            logCleanupWarning: res.locals.adminLogCleanupWarning,
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info'
         });
     } catch (err) {
         const vm = getErrorViewModel(500);
         return res.status(500).render('errors/error', { ...vm, message: 'Erro ao carregar log de atividades: ' + err.message });
+    }
+});
+
+app.post('/admin/logs/executar-limpeza', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) {
+        return forbidden;
+    }
+
+    try {
+        await sequelize.query('TRUNCATE TABLE tb_app_activity_logs');
+        const mensagem = 'Limpeza de log concluída. Todos os registros foram removidos.';
+        return res.redirect(`/admin/logs?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        const mensagem = 'Erro ao executar limpeza de log: ' + err.message;
+        return res.redirect(`/admin/logs?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
     }
 });
 
@@ -4899,6 +4920,50 @@ app.post('/notificacoes/marcar-todas-lidas', async (req, res) => {
         );
 
         return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: err.message });
+    }
+});
+
+app.post('/notificacoes/remover', async (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        return res.status(403).json({ ok: false, mensagem: 'Acesso negado.' });
+    }
+
+    try {
+        const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+        const ids = [...new Set(
+            rawIds
+                .map((value) => parseInt(value, 10))
+                .filter((id) => Number.isInteger(id) && id > 0)
+        )];
+
+        if (ids.length === 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Selecione ao menos uma notificação.' });
+        }
+
+        const codes = notificacaoRecipientCodes(await getEffectiveUserCode(req));
+        if (codes.length === 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Aluno não identificado.' });
+        }
+
+        const removedCount = await Notificacao.destroy({
+            where: {
+                id: { [Op.in]: ids },
+                user_code: { [Op.in]: codes }
+            }
+        });
+
+        if (removedCount === 0) {
+            return res.status(404).json({ ok: false, mensagem: 'Nenhuma notificação encontrada para remover.' });
+        }
+
+        const mensagem = removedCount === 1
+            ? '1 notificação removida com sucesso.'
+            : `${removedCount} notificações removidas com sucesso.`;
+
+        return res.json({ ok: true, removedCount, mensagem });
     } catch (err) {
         return res.status(500).json({ ok: false, mensagem: err.message });
     }

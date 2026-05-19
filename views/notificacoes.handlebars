@@ -7,10 +7,10 @@
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h1 class="mb-0">Notificações</h1>
     <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-outline-secondary btn-sm" href="/presenca"><i class="fa-solid fa-calendar-check"></i> Controle de Presença</a>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="btnMarcarTodasNotificacoes" {{#unless notificacoes.length}}disabled{{/unless}}>
-            <i class="fa-regular fa-envelope-open"></i> Marcar todas como lidas
+        <button type="button" class="btn btn-outline-danger btn-sm d-none" id="btnRemoverNotificacoes">
+            <i class="fa-solid fa-trash-can"></i> <span id="btnRemoverNotificacoesLabel">Remover</span>
         </button>
+
     </div>
 </div>
 
@@ -19,7 +19,7 @@
 {{#unless notificacoes.length}}
 <div class="card border-0 shadow-sm">
     <div class="card-body text-body-secondary text-center py-5">
-        <i class="fa-solid fa-inbox fs-1 d-block mb-3 opacity-50"></i>
+        <i class="fa-solid fa-bell fs-1 d-block mb-3 opacity-50"></i>
         Nenhuma notificação por enquanto.
     </div>
 </div>
@@ -28,26 +28,33 @@
     {{#each notificacoes}}
     <div class="card border-0 shadow-sm notificacao-item {{#if isUnread}}border-start border-4 border-primary{{/if}}" data-id="{{id}}" data-unread="{{#if isUnread}}1{{else}}0{{/if}}">
         <div class="card-body">
-            <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
-                <div>
-                    <span class="badge text-bg-{{kindBadge}} me-1">
-                        {{#if (eq kind 'PRESENCA_APROVADA')}}Presença aprovada{{else}}{{#if (eq kind 'PRESENCA_NEGADA')}}Presença negada{{else}}Sistema{{/if}}{{/if}}
-                    </span>
-                    {{#if isUnread}}<span class="badge text-bg-primary">Nova</span>{{/if}}
-                    <h2 class="h6 mt-2 mb-1">{{title}}</h2>
-                    <p class="mb-0 text-body-secondary">{{body}}</p>
-                    <div class="small text-body-secondary mt-2">
-                        <i class="fa-regular fa-clock"></i> {{createdAtLabel}}
-                        {{#unless isUnread}}
-                        <span class="ms-2"><i class="fa-regular fa-eye"></i> Lida em {{readAtLabel}}</span>
-                        {{/unless}}
+            <div class="d-flex flex-wrap align-items-start gap-3">
+                <div class="form-check mt-1 shrink-0">
+                    <input class="form-check-input notificacao-select" type="checkbox" value="{{id}}" id="notifSelect{{id}}" aria-label="Selecionar notificação {{id}}">
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                        <div>
+                            <span class="badge text-bg-{{kindBadge}} me-1">
+                                {{#if (eq kind 'PRESENCA_APROVADA')}}Presença aprovada{{else}}{{#if (eq kind 'PRESENCA_NEGADA')}}Presença negada{{else}}Sistema{{/if}}{{/if}}
+                            </span>
+                            {{#if isUnread}}<span class="badge text-bg-primary">Nova</span>{{/if}}
+                            <h2 class="h6 mt-2 mb-1">{{title}}</h2>
+                            <p class="mb-0 text-body-secondary">{{body}}</p>
+                            <div class="small text-body-secondary mt-2">
+                                <i class="fa-regular fa-clock"></i> {{createdAtLabel}}
+                                {{#unless isUnread}}
+                                <span class="ms-2"><i class="fa-regular fa-eye"></i> Lida em {{readAtLabel}}</span>
+                                {{/unless}}
+                            </div>
+                        </div>
+                        {{#if isUnread}}
+                        <button type="button" class="btn btn-sm btn-outline-primary shrink-0 btn-marcar-notificacao-lida" data-id="{{id}}" aria-label="Marcar como lida">
+                            <i class="fa-regular fa-envelope-open"></i> Marcar lida
+                        </button>
+                        {{/if}}
                     </div>
                 </div>
-                {{#if isUnread}}
-                <button type="button" class="btn btn-sm btn-outline-primary shrink-0 btn-marcar-notificacao-lida" data-id="{{id}}" aria-label="Marcar como lida">
-                    <i class="fa-regular fa-envelope-open"></i> Marcar lida
-                </button>
-                {{/if}}
             </div>
         </div>
     </div>
@@ -59,21 +66,72 @@
 (function () {
     function showToast(message, variant) {
         const wrap = document.createElement('div');
-        wrap.className = 'alert alert-' + (variant === 'danger' ? 'danger' : 'primary') + ' alert-autodismiss position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+        wrap.className = 'alert alert-' + (variant === 'danger' ? 'danger' : 'success') + ' alert-autodismiss position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
         wrap.style.zIndex = '2000';
         wrap.setAttribute('role', 'alert');
-        wrap.textContent = message;
+        wrap.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + message;
         document.body.appendChild(wrap);
-        window.setTimeout(function () { wrap.remove(); }, 4000);
+        window.setTimeout(function () { wrap.remove(); }, 5000);
     }
 
-    async function postJson(url) {
-        const res = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
+    async function postJson(url, body) {
+        const options = {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        };
+        if (body !== undefined) {
+            options.body = JSON.stringify(body);
+        }
+        const res = await fetch(url, options);
         const data = await res.json().catch(function () { return {}; });
         if (!res.ok || !data.ok) {
             throw new Error(data.mensagem || 'Falha na requisição.');
         }
         return data;
+    }
+
+    function getSelectedNotificationIds() {
+        return Array.from(document.querySelectorAll('.notificacao-select:checked'))
+            .map(function (input) { return parseInt(input.value, 10); })
+            .filter(function (id) { return Number.isInteger(id) && id > 0; });
+    }
+
+    function syncRemoveButtonState() {
+        const btnRemover = document.getElementById('btnRemoverNotificacoes');
+        const btnLabel = document.getElementById('btnRemoverNotificacoesLabel');
+        if (!btnRemover || !btnLabel) {
+            return;
+        }
+
+        const selectedCount = getSelectedNotificationIds().length;
+        btnRemover.classList.toggle('d-none', selectedCount === 0);
+        btnLabel.textContent = selectedCount === 1 ? 'Remover' : 'Remover Selecionados';
+    }
+
+    document.querySelectorAll('.notificacao-select').forEach(function (checkbox) {
+        checkbox.addEventListener('change', syncRemoveButtonState);
+    });
+
+    const btnRemover = document.getElementById('btnRemoverNotificacoes');
+    if (btnRemover) {
+        btnRemover.addEventListener('click', async function () {
+            const ids = getSelectedNotificationIds();
+            if (ids.length === 0) {
+                return;
+            }
+
+            btnRemover.disabled = true;
+            try {
+                const data = await postJson('/notificacoes/remover', { ids: ids });
+                window.location.href = '/notificacoes?mensagem=' + encodeURIComponent(data.mensagem || 'Notificações removidas.') + '&tipo=success';
+            } catch (e) {
+                showToast(e.message, 'danger');
+                btnRemover.disabled = false;
+            }
+        });
     }
 
     const btnTodas = document.getElementById('btnMarcarTodasNotificacoes');

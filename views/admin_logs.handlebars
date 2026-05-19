@@ -1,4 +1,29 @@
 <div class="container py-4">
+    {{#if mensagem}}
+    <div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+        {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+    </div>
+    {{/if}}
+
+    {{#if logCleanupWarning}}
+    <div class="alert alert-warning border" role="alert">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div>
+                <strong><i class="fa-solid fa-triangle-exclamation"></i> Limpeza de log recomendada</strong>
+                <div class="small mt-1">
+                    Foram detectados {{logCleanupWarning.logCount}} registros (limite recomendado: {{logCleanupWarning.maxRecords}}).
+                    O sistema continuará registrando novas atividades até você executar a limpeza completa.
+                </div>
+            </div>
+            <form method="post" action="{{logCleanupWarning.cleanupUrl}}" class="m-0" id="formExecutarLimpezaLog">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fa-solid fa-broom"></i> Executar limpeza de log
+                </button>
+            </form>
+        </div>
+    </div>
+    {{/if}}
+
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
         <div>
             <h1 class="mb-1">Log de atividades</h1>
@@ -279,6 +304,18 @@
         if (btnLimpar) {
             btnLimpar.addEventListener('click', () => {
                 window.location.href = '{{clearLogsUrl}}';
+            });
+        }
+
+        const formLimpeza = document.getElementById('formExecutarLimpezaLog');
+        if (formLimpeza) {
+            formLimpeza.addEventListener('submit', (event) => {
+                const confirmed = window.confirm(
+                    'Confirma a limpeza completa do log? Todos os registros serão removidos (TRUNCATE).'
+                );
+                if (!confirmed) {
+                    event.preventDefault();
+                }
             });
         }
 

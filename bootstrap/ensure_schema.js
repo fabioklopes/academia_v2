@@ -5,14 +5,81 @@
  * Garante que colunas e tabelas existam sem precisar rodar migrações manuais.
  */
 
+const Usuario = require('../models/Usuario');
+const Presenca = require('../models/Presenca');
 const Turma = require('../models/Turma');
 const TurmaAluno = require('../models/TurmaAluno');
+const MetaAula = require('../models/MetaAula');
+const MetaAulaTurma = require('../models/MetaAulaTurma');
 const MensagemProfessor = require('../models/MensagemProfessor');
 const MensagemProfessorOcultacao = require('../models/MensagemProfessorOcultacao');
 const MensagemProfessorLeitura = require('../models/MensagemProfessorLeitura');
 const AppActivityLog = require('../models/AppActivityLog');
 const Notificacao = require('../models/Notificacao');
 const { sequelize, Sequelize } = require('../models/db');
+
+const USUARIOS_TABLE = 'tb_usuarios';
+
+/**
+ * Remove índices redundantes em tb_usuarios (efeito de sync alter repetido no MySQL).
+ * Agrupa por colunas + unicidade e mantém só o primeiro de cada grupo.
+ */
+async function dedupeUsuarioRedundantIndexes() {
+    const dialect = sequelize.getDialect();
+    if (dialect !== 'mysql' && dialect !== 'mariadb') {
+        return;
+    }
+
+    const queryInterface = sequelize.getQueryInterface();
+    try {
+        await queryInterface.describeTable(USUARIOS_TABLE);
+    } catch (_err) {
+        return;
+    }
+
+    const [rows] = await sequelize.query(`
+        SELECT
+            INDEX_NAME,
+            MAX(NON_UNIQUE) AS non_unique,
+            GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = :tableName
+          AND INDEX_NAME <> 'PRIMARY'
+        GROUP BY INDEX_NAME
+        ORDER BY INDEX_NAME
+    `, {
+        replacements: { tableName: USUARIOS_TABLE }
+    });
+
+    if (!rows || rows.length === 0) {
+        return;
+    }
+
+    const groups = new Map();
+    for (const row of rows) {
+        const signature = `${row.non_unique}:${row.cols}`;
+        if (!groups.has(signature)) {
+            groups.set(signature, []);
+        }
+        groups.get(signature).push(row.INDEX_NAME);
+    }
+
+    for (const indexNames of groups.values()) {
+        if (indexNames.length <= 1) {
+            continue;
+        }
+
+        const sorted = indexNames.slice().sort();
+        const keepName = sorted[0];
+
+        for (let i = 1; i < sorted.length; i += 1) {
+            const dropName = sorted[i];
+            await sequelize.query(`ALTER TABLE \`${USUARIOS_TABLE}\` DROP INDEX \`${dropName}\``);
+            console.log(`Indice redundante removido em ${USUARIOS_TABLE}: ${dropName} (mantido ${keepName})`);
+        }
+    }
+}
 
 /** Remove índice UNIQUE do e-mail para permitir mesmo e-mail em titular e dependentes. */
 async function ensureUsuarioEmailNotUnique() {
@@ -94,21 +161,31 @@ async function ensureUsuarioBirthdayMessagesDisabledYearColumn() {
     );
 }
 
-/** Sincroniza tabelas e adiciona colunas novas em tb_usuarios se faltarem. */
+/**
+ * Sincroniza tabelas na ordem das dependências (FK).
+ * tb_usuarios precisa existir antes de metas, mensagens etc.
+ */
 async function ensureTurmaSchema() {
+    await dedupeUsuarioRedundantIndexes();
+    // sync() sem alter: evita criar dezenas de índices UNIQUE duplicados no MySQL.
+    await Usuario.sync();
+    await Presenca.sync();
     await Turma.sync();
     await TurmaAluno.sync();
+    await MetaAula.sync();
+    await MetaAulaTurma.sync();
     await MensagemProfessor.sync();
     await MensagemProfessorOcultacao.sync();
     await MensagemProfessorLeitura.sync();
-    await AppActivityLog.sync({ alter: true });
-    await Notificacao.sync({ alter: true });
+    await AppActivityLog.sync();
+    await Notificacao.sync();
     await ensureUsuarioClassCodeColumn();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();
 }
 
 module.exports = {
+    dedupeUsuarioRedundantIndexes,
     ensureUsuarioEmailNotUnique,
     ensureTurmaSchema
 };

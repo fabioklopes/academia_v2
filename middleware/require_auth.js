@@ -13,7 +13,8 @@ function isPublicRoute(pathname) {
         '/reset-password',
         '/aluno/novo',
         '/aluno/cadastrar',
-        '/aluno/verificar-titular'
+        '/aluno/verificar-titular',
+        '/ignition'
     ]);
 
     return publicRoutes.has(pathname) || pathname.startsWith('/uploads/');

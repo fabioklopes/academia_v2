@@ -3,19 +3,14 @@ const db = require('./db');
 const MetaAulaTurma = db.sequelize.define('tb_meta_aula_turmas', {
     meta_id: {
         type: db.Sequelize.INTEGER,
-        allowNull: false
+        allowNull: false,
+        primaryKey: true
     },
     class_code: {
         type: db.Sequelize.STRING(5),
-        allowNull: false
+        allowNull: false,
+        primaryKey: true
     }
-}, {
-    indexes: [
-        {
-            unique: true,
-            fields: ['meta_id', 'class_code']
-        }
-    ]
 });
 
 MetaAulaTurma.associate = (models) => {
@@ -33,9 +28,5 @@ MetaAulaTurma.associate = (models) => {
         targetKey: 'class_code'
     });
 };
-
-if (process.env.NODE_ENV !== 'test') {
-    MetaAulaTurma.sync({ alter: true });
-}
 
 module.exports = MetaAulaTurma;

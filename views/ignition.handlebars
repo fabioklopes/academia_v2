@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="/img/logotipo.ico">
+    <title>Sistema Oss — Configuração inicial</title>
+</head>
+
+<body>
+    <div class="container mt-3 p-2" style="max-width: 520px;">
+        <div class="d-flex flex-column align-items-center mb-3">
+            <img src="/img/logotipo_transparente.png" alt="Logotipo" class="img-fluid mb-2" width="50">
+            <h1 class="fs-4 text-center mb-1">Configuração inicial</h1>
+            <p class="text-muted text-center small mb-0">
+                Primeira execução: cadastre o administrador e a primeira turma para começar a usar o portal.
+            </p>
+        </div>
+
+        {{#if erro}}
+        <div class="alert alert-danger alert-autodismiss" role="alert">{{erro}}</div>
+        {{/if}}
+
+        <form action="/ignition" method="POST" class="mt-3" novalidate>
+            <h2 class="h6 text-uppercase text-muted border-bottom pb-2 mb-3">Administrador</h2>
+
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <label for="first_name" class="form-label">Primeiro nome</label>
+                    <input type="text" class="form-control{{#if camposErro.first_name}} is-invalid{{/if}}" id="first_name"
+                        name="first_name" value="{{valores.first_name}}" autocomplete="given-name" required>
+                    {{#if camposErro.first_name}}
+                    <div class="invalid-feedback">{{camposErro.first_name}}</div>
+                    {{/if}}
+                </div>
+                <div class="col-md-6">
+                    <label for="last_name" class="form-label">Sobrenome</label>
+                    <input type="text" class="form-control{{#if camposErro.last_name}} is-invalid{{/if}}" id="last_name"
+                        name="last_name" value="{{valores.last_name}}" autocomplete="family-name" required>
+                    {{#if camposErro.last_name}}
+                    <div class="invalid-feedback">{{camposErro.last_name}}</div>
+                    {{/if}}
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="email" class="form-label">E-mail (login)</label>
+                <input type="email" class="form-control{{#if camposErro.email}} is-invalid{{/if}}" id="email"
+                    name="email" value="{{valores.email}}" autocomplete="email" required>
+                {{#if camposErro.email}}
+                <div class="invalid-feedback">{{camposErro.email}}</div>
+                {{/if}}
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <label for="password" class="form-label">Senha</label>
+                    <input type="password" class="form-control{{#if camposErro.password}} is-invalid{{/if}}"
+                        id="password" name="password" autocomplete="new-password" required minlength="8">
+                    {{#if camposErro.password}}
+                    <div class="invalid-feedback">{{camposErro.password}}</div>
+                    {{/if}}
+                </div>
+                <div class="col-md-6">
+                    <label for="password_confirm" class="form-label">Confirmar senha</label>
+                    <input type="password" class="form-control{{#if camposErro.password_confirm}} is-invalid{{/if}}"
+                        id="password_confirm" name="password_confirm" autocomplete="new-password" required
+                        minlength="8">
+                    {{#if camposErro.password_confirm}}
+                    <div class="invalid-feedback">{{camposErro.password_confirm}}</div>
+                    {{/if}}
+                </div>
+            </div>
+
+            <h2 class="h6 text-uppercase text-muted border-bottom pb-2 mb-3 mt-4">Primeira turma</h2>
+
+            <div class="mb-4">
+                <label for="class_name" class="form-label">Nome da turma</label>
+                <input type="text" class="form-control{{#if camposErro.class_name}} is-invalid{{/if}}" id="class_name"
+                    name="class_name" value="{{valores.class_name}}" placeholder="Ex.: CRTN Belém — Adulto" required>
+                {{#if camposErro.class_name}}
+                <div class="invalid-feedback">{{camposErro.class_name}}</div>
+                {{/if}}
+                <div class="form-text">Alunos e professores serão vinculados a turmas a partir deste cadastro.</div>
+            </div>
+
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary">Concluir configuração</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="/js/auto-dismiss.js" defer></script>
+</body>
+
+</html>

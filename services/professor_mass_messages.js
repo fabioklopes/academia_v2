@@ -1,5 +1,10 @@
 'use strict';
 
+/**
+ * Serviço de mensagens em massa do professor para turmas.
+ * Cuida de: listar turmas, expirar avisos, marcar leitura e montar dados para a tela.
+ */
+
 const { Op } = require('sequelize');
 const Turma = require('../models/Turma');
 const TurmaAluno = require('../models/TurmaAluno');
@@ -12,6 +17,7 @@ const {
     formatDateTimePtBrWithAs
 } = require('../lib/pure_helpers');
 
+/** Busca turmas ativas em que o aluno está matriculado. */
 async function getActiveTurmasForUser(userCode) {
     if (!userCode) {
         return [];
@@ -65,6 +71,7 @@ async function getStudentMassMessageAudience(usuarioSessao) {
     };
 }
 
+/** Marca como expiradas as mensagens que passaram da data de validade. */
 async function expireProfessorMessagesIfNeeded() {
     await MensagemProfessor.update(
         { status: 'E' },
@@ -120,6 +127,7 @@ function buildMassMessageDeliveryKey(mensagem) {
     ].join('|');
 }
 
+/** Prepara dados de uma mensagem para exibir na tela (status, datas, nome da turma). */
 function toMassMessageViewModel(mensagem, turmaByCode = {}) {
     const plain = typeof mensagem.get === 'function'
         ? mensagem.get({ plain: true })
@@ -163,6 +171,7 @@ function toMassMessageViewModel(mensagem, turmaByCode = {}) {
     };
 }
 
+/** Monta contadores do sino de avisos no menu do aluno (mensagens + notificações). */
 function buildStudentMassMessageBellViewModel(state, notificationUnread = 0) {
     const massUnread = Number(state.unreadCount) || 0;
     const notifUnread = Math.max(0, Number(notificationUnread) || 0);
@@ -179,6 +188,7 @@ function buildStudentMassMessageBellViewModel(state, notificationUnread = 0) {
     };
 }
 
+/** Estado completo da Central de Avisos: lista, não lidas, turmas do aluno. */
 async function getStudentMassMessageState(usuarioSessao) {
     const emptyState = {
         messages: [],
@@ -292,6 +302,7 @@ async function findVisibleMassMessageForStudent(usuarioSessao, messageId) {
     });
 }
 
+/** Registra que o aluno leu uma mensagem e devolve contagem atualizada de não lidas. */
 async function markMassMessageAsRead(usuarioSessao, messageId) {
     const mensagem = await findVisibleMassMessageForStudent(usuarioSessao, messageId);
     if (!mensagem) {

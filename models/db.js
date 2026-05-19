@@ -1,3 +1,8 @@
+/**
+ * Conexão com o banco de dados MySQL via Sequelize.
+ * Lê credenciais do arquivo .env (variáveis ENV_DB_* ou DB_*).
+ */
+
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
@@ -16,7 +21,6 @@ if (!dbConfig.dialect) {
     throw new Error('Configuração de banco inválida: defina ENV_DB_DIALECT (ou DB_DIALECT) no arquivo .env.');
 }
 
-// conexão com o banco de dados
 const sequelize = new Sequelize(
     dbConfig.name,
     dbConfig.user,

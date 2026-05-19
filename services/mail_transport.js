@@ -1,5 +1,9 @@
 'use strict';
 
+/**
+ * Monta a configuração do Nodemailer a partir das variáveis de ambiente.
+ * Retorna null se SMTP não estiver configurado (útil em desenvolvimento local).
+ */
 function getPasswordResetTransportConfig() {
     const service = process.env.SMTP_SERVICE || process.env.EMAIL_SERVICE;
     const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;

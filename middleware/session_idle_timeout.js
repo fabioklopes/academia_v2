@@ -1,11 +1,17 @@
 'use strict';
 
+/**
+ * Encerra a sessão automaticamente quando o usuário fica parado por muito tempo.
+ * O tempo padrão é 10 minutos (configurável em SESSION_IDLE_TIMEOUT_MS).
+ */
+
 const { SESSION_IDLE_TIMEOUT_MS } = require('../config/constants');
 const { isPublicRoute } = require('./require_auth');
 
 const SESSION_COOKIE_NAME = 'oss.sid';
 const IDLE_EXPIRED_MESSAGE = 'Sua sessão expirou por inatividade. Faça login novamente.';
 
+/** Cria o middleware que verifica inatividade a cada requisição. */
 function createSessionIdleTimeoutMiddleware() {
     return function sessionIdleTimeout(req, res, next) {
         if (isPublicRoute(req.path) || !req.session || !req.session.usuario) {

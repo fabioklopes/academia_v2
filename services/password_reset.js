@@ -1,5 +1,9 @@
 'use strict';
 
+/**
+ * Fluxo de redefinição de senha: mensagens para a tela, envio de e-mail e validação de token.
+ */
+
 const { Op } = require('sequelize');
 const nodemailer = require('nodemailer');
 const argon2 = require('argon2');
@@ -9,6 +13,7 @@ const { normalizeEmail } = require('../lib/pure_helpers');
 const { getPasswordResetTransportConfig } = require('./mail_transport');
 const { buildResetPasswordLink } = require('./public_app_links');
 
+/** Monta lista de alertas para a tela "Esqueci minha senha" conforme o resultado da busca. */
 function buildForgotPasswordMessages(options) {
     const messages = [];
 
@@ -222,6 +227,7 @@ async function findUsuariosWithValidResetToken(email, token) {
     return validUsuarios;
 }
 
+/** Processa o formulário de nova senha: valida token, confere senhas e salva no banco. */
 async function handleResetPasswordSubmit(req, res) {
     const email = normalizeEmail(req.body.email);
     const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';

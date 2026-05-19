@@ -1,3 +1,9 @@
+/**
+ * Monta textos e telas de erro HTTP (403, 404, 500, etc.).
+ * Usado quando o usuário acessa algo proibido ou quando algo dá errado no servidor.
+ */
+
+/** Retorna título, mensagem e ícone para cada código de erro HTTP. */
 function getErrorViewModel(statusCode) {
     const normalizedStatusCode = Number(statusCode) || 500;
     const map = {
@@ -58,11 +64,13 @@ function getErrorViewModel(statusCode) {
     return { statusCode: normalizedStatusCode, ...viewModel };
 }
 
+/** Envia a página de erro HTML para o navegador. */
 function renderErrorPage(res, statusCode) {
     const vm = getErrorViewModel(statusCode);
     return res.status(vm.statusCode).render('errors/error', vm);
 }
 
+/** Middleware para URLs que não existem (404). */
 function createNotFoundMiddleware() {
     return (req, res) => {
         if (res.headersSent) {
@@ -77,6 +85,7 @@ function createNotFoundMiddleware() {
     };
 }
 
+/** Middleware global de erros — captura exceções e mostra página amigável. */
 function createErrorMiddleware(options) {
     const { isProduction } = options;
     return (err, req, res, _next) => {

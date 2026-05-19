@@ -19,9 +19,11 @@ const {
 } = require('../services/password_reset');
 
 /**
- * Registra rotas públicas de login, logout e fluxo de redefinição de senha.
- * @param {import('express').Application} app
- * @param {{ buildBirthdayLoginModalData: (usuario: object) => object | null }} deps
+ * Registra rotas de autenticação: login, logout e redefinição de senha.
+ * São rotas públicas — não exigem usuário logado (exceto logout).
+ *
+ * @param {import('express').Application} app - Aplicação Express
+ * @param {{ buildBirthdayLoginModalData: (usuario: object) => object | null }} deps - Funções do app.js
  */
 function registerAuthRoutes(app, deps) {
     const { buildBirthdayLoginModalData } = deps;

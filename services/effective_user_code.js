@@ -2,7 +2,11 @@
 
 const Usuario = require('../models/Usuario');
 
-// Retorna o user_code efetivo (viewingAs ou logado)
+/**
+ * Descobre qual código de usuário usar na requisição atual.
+ * Se o titular está visualizando um dependente (viewingAs), usa o código do dependente.
+ * Caso contrário, usa o código de quem está logado.
+ */
 async function getEffectiveUserCode(req) {
     if (req.session.viewingAs) {
         const dep = await Usuario.findByPk(req.session.viewingAs.id);
@@ -11,13 +15,19 @@ async function getEffectiveUserCode(req) {
     return req.session.usuario ? req.session.usuario.user_code : null;
 }
 
-/** Alinha `user_code` à forma usada no banco (trim + maiúsculas) para presença/notificações. */
+/**
+ * Padroniza um código de usuário: remove espaços e coloca em maiúsculas.
+ * Usado ao buscar presenças e notificações no banco.
+ */
 function normalizeUserCode(value) {
     const s = String(value || '').trim().toUpperCase();
     return s || null;
 }
 
-/** Códigos possíveis do aluno na tabela de notificações (compatível com registros antigos). */
+/**
+ * Monta lista de códigos possíveis para achar notificações de um aluno.
+ * Inclui formato antigo e novo para não perder registros legados.
+ */
 function notificacaoRecipientCodes(raw) {
     const n = normalizeUserCode(raw);
     if (!n) {

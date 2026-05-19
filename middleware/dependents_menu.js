@@ -1,6 +1,9 @@
 const Usuario = require('../models/Usuario');
 
-// Carrega lista de dependentes do titular logado para o menu
+/**
+ * Carrega os filhos/dependentes do titular logado para exibir no menu
+ * a opção de trocar de conta.
+ */
 async function dependentsMenuMiddleware(req, res, next) {
     const usuario = req.session.usuario;
     if (usuario && !req.session.viewingAs) {

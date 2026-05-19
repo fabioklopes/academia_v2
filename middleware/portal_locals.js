@@ -1,4 +1,7 @@
-// Carrega na seção a informação do Portal
+/**
+ * Preenche variáveis usadas em todas as telas: quem está logado,
+ * qual portal mostrar (aluno, professor ou admin) e qual menu lateral usar.
+ */
 function portalLocalsMiddleware(req, res, next) {
     res.locals.usuarioLogado = req.session.usuario || null;
     res.locals.viewingAs = req.session.viewingAs || null;

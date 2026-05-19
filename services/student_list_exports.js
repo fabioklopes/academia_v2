@@ -1,14 +1,20 @@
 'use strict';
 
+/**
+ * Exportação de listas de alunos para Excel (XLSX) e PDF.
+ */
+
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { getTodayYmd, resolveLocalUploadFile } = require('../lib/pure_helpers');
 
+/** Define cabeçalhos HTTP para o navegador baixar o arquivo (Excel ou PDF). */
 function setDownloadHeaders(res, filename, contentType) {
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 }
 
+/** Gera planilha Excel com colunas e linhas informadas e envia para download. */
 async function exportStudentsToXlsx(res, filename, rows, columns) {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Relatório');
@@ -31,6 +37,7 @@ async function exportStudentsToXlsx(res, filename, rows, columns) {
     res.end();
 }
 
+/** Gera PDF com tabela de alunos (foto, faixa, status — conforme opções). */
 function exportStudentsToPdf(res, filename, title, rows, options = {}) {
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
     setDownloadHeaders(res, filename, 'application/pdf');

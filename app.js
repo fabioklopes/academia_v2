@@ -4247,6 +4247,20 @@ app.get('/admin/usuario/:user_code', async (req, res) => {
 });
 
 // =========================
+// RANKING (PRO/ADM)
+// =========================
+app.get('/ranking', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    return res.render('em_desenvolvimento', {
+        pageTitle: 'Rankings internos',
+        message: 'Aguarde ... Em desenvolvimento',
+        iconClass: 'fa-person-digging'
+    });
+});
+
+// =========================
 // RELATÓRIOS (PRO/ADM)
 // =========================
 app.get('/relatorios', async (req, res) => {

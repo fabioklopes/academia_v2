@@ -99,7 +99,13 @@ const { createActivityLogMiddleware } = require('./middleware/activity_log');
 const portalLocalsMiddleware = require('./middleware/portal_locals');
 const dependentsMenuMiddleware = require('./middleware/dependents_menu');
 const { requireAuth } = require('./middleware/require_auth');
-const { getErrorViewModel, renderErrorPage, createNotFoundMiddleware, createErrorMiddleware } = require('./middleware/http_errors');
+const {
+    getErrorViewModel,
+    renderErrorPage,
+    createClientErrorGuardMiddleware,
+    createNotFoundMiddleware,
+    createErrorMiddleware
+} = require('./middleware/http_errors');
 const { registerExpressStack } = require('./config/register_express_stack');
 const { ensureProfessorRoute, ensureAdminRoute } = require('./middleware/authorization');
 const { exportStudentsToXlsx, exportStudentsToPdf } = require('./services/student_list_exports');
@@ -124,7 +130,10 @@ if (isProduction && (!sessionSecret || sessionSecret.trim().length < 32)) {
     throw new Error('SESSION_SECRET ausente/curto demais. Defina um valor forte no ambiente de produção.');
 }
 
+app.set('env', isProduction ? 'production' : 'development');
+
 registerExpressStack(app, { engine, moment, isProduction, sessionSecret });
+app.use(createClientErrorGuardMiddleware({ isProduction }));
 
 app.use(createActivityLogMiddleware());
 app.use(portalLocalsMiddleware);
@@ -5210,7 +5219,7 @@ app.post('/mensagens/mestre/:id/naoLida', async (req, res) => {
 
 registerAuthRoutes(app, { buildBirthdayLoginModalData });
 
-app.use(createNotFoundMiddleware());
+app.use(createNotFoundMiddleware({ isProduction }));
 app.use(createErrorMiddleware({ isProduction }));
 
 // execução do servidor (apenas quando o arquivo é o ponto de entrada — não em testes Jest)

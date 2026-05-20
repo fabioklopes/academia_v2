@@ -15,6 +15,8 @@ const projectRoot = path.join(__dirname, '..');
  * Mantém o mesmo comportamento que antes vivia inline em app.js.
  */
 function registerExpressStack(app, { engine, moment, isProduction, sessionSecret }) {
+    app.disable('x-powered-by');
+
     if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
         app.set('trust proxy', 1);
     }

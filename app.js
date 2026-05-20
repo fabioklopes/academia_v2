@@ -107,8 +107,9 @@ const {
     createErrorMiddleware
 } = require('./middleware/http_errors');
 const { registerExpressStack } = require('./config/register_express_stack');
-const { ensureProfessorRoute, ensureAdminRoute } = require('./middleware/authorization');
+const { ensureProfessorRoute, ensureAdminRoute, ensureRankingRoute } = require('./middleware/authorization');
 const { exportStudentsToXlsx, exportStudentsToPdf } = require('./services/student_list_exports');
+const { buildFrequenciaRankingPage } = require('./services/ranking_frequencia');
 const { getPasswordResetTransportConfig } = require('./services/mail_transport');
 const { buildEmailChangeConfirmLink } = require('./services/public_app_links');
 const { registerAuthRoutes } = require('./routes/auth');
@@ -4256,17 +4257,58 @@ app.get('/admin/usuario/:user_code', async (req, res) => {
 });
 
 // =========================
-// RANKING (PRO/ADM)
+// RANKING (STD/PRO/ADM)
 // =========================
 app.get('/ranking', async (req, res) => {
-    const forbidden = ensureProfessorRoute(req, res);
+    const forbidden = ensureRankingRoute(req, res);
     if (forbidden) return forbidden;
 
-    return res.render('em_desenvolvimento', {
-        pageTitle: 'Rankings internos',
-        message: 'Aguarde ... Em desenvolvimento',
-        iconClass: 'fa-person-digging'
+    return res.render('ranking', {
+        pageTitle: 'Rankings internos'
     });
+});
+
+app.get('/ranking/dados', async (req, res) => {
+    const forbidden = ensureRankingRoute(req, res);
+    if (forbidden) {
+        return res.status(403).json({ ok: false, mensagem: 'Acesso não permitido.' });
+    }
+
+    const pageRaw = parseInt(req.query.page, 10);
+    const currentPage = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const itemsPerPage = 10;
+    const pagesPerBlock = 8;
+
+    try {
+        const result = await buildFrequenciaRankingPage({
+            currentPage,
+            itemsPerPage,
+            pagesPerBlock,
+            beltMap: BELT_MAP,
+            presencaPesoPorSolicitacao
+        });
+
+        return res.json({
+            ok: true,
+            items: result.items,
+            pagination: {
+                currentPage: result.pagination.currentPage,
+                totalPages: result.pagination.totalPages,
+                totalItems: result.pagination.totalItems,
+                hasPrev: result.pagination.hasPrev,
+                hasNext: result.pagination.hasNext,
+                prevPage: result.pagination.prevPage,
+                nextPage: result.pagination.nextPage,
+                pageNumbers: result.pagination.pageNumbers
+            },
+            metaInfo: result.metaInfo
+        });
+    } catch (err) {
+        return res.status(500).json({
+            ok: false,
+            mensagem: err.message || 'Erro ao carregar ranking de frequência.'
+        });
+    }
 });
 
 // =========================

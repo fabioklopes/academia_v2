@@ -1,0 +1,455 @@
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Rankings internos</h1>
+</div>
+
+<style>
+    .dashboard-card-link {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .dashboard-card {
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 0.85rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        min-height: 170px;
+        background-color: #ffffff;
+    }
+
+    .dashboard-card:hover,
+    .dashboard-card:focus-within {
+        transform: translateY(-4px);
+        border-color: rgba(13, 110, 253, 0.6);
+        box-shadow: 0 0.75rem 1.25rem rgba(0, 0, 0, 0.08);
+        background-color: #f8fbff;
+    }
+
+    .dashboard-card-icon {
+        font-size: 2rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .ranking-card-trigger {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        width: 100%;
+        text-align: inherit;
+    }
+
+    #modalRankingFrequencia .modal-dialog {
+        max-width: 720px;
+    }
+
+    #modalRankingFrequencia .modal-content {
+        max-height: calc(100vh - var(--app-header-height, 56px) - var(--app-footer-height, 48px) - 1.5rem);
+    }
+
+    .ranking-table-scroll {
+        max-height: 48vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    #modalRankingFrequencia .ranking-table {
+        font-size: 0.85rem;
+        table-layout: fixed;
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    #modalRankingFrequencia .ranking-table th,
+    #modalRankingFrequencia .ranking-table td {
+        padding: 0.4rem 0.35rem;
+        border: 0;
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-top {
+        border-top: 2px solid rgba(13, 110, 253, 0.75);
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-bottom {
+        border-bottom: 2px solid rgba(13, 110, 253, 0.75);
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-left {
+        border-left: 2px solid rgba(13, 110, 253, 0.75);
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-right {
+        border-right: 2px solid rgba(13, 110, 253, 0.75);
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-top.ranking-top-frame-left {
+        border-top-left-radius: 0.4rem;
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-top.ranking-top-frame-right {
+        border-top-right-radius: 0.4rem;
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-bottom.ranking-top-frame-left {
+        border-bottom-left-radius: 0.4rem;
+    }
+
+    #modalRankingFrequencia .ranking-table tbody td.ranking-top-frame-bottom.ranking-top-frame-right {
+        border-bottom-right-radius: 0.4rem;
+    }
+
+    #modalRankingFrequencia .ranking-table .ranking-col-aluno {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ranking-row-clickable {
+        cursor: pointer;
+    }
+
+    .ranking-pagination-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .ranking-pagination-wrapper small {
+        text-align: center;
+    }
+
+    .ranking-pagination-nav {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .ranking-pagination-nav .pagination {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    .ranking-aluno-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--bs-border-color-translucent);
+    }
+
+    .ranking-aluno-belt-image {
+        max-height: 48px;
+    }
+
+    @media (max-width: 767.98px) {
+        .dashboard-card {
+            min-height: auto;
+        }
+
+        .ranking-table-scroll {
+            max-height: 42vh;
+        }
+    }
+</style>
+
+<div class="row g-3 justify-content-center">
+    <div class="col-6 col-md-3 d-flex">
+        <button
+            type="button"
+            class="dashboard-card-link w-100 ranking-card-trigger"
+            data-bs-toggle="modal"
+            data-bs-target="#modalRankingFrequencia"
+            aria-label="Abrir ranking de frequência nas aulas"
+        >
+            <div class="card dashboard-card w-100 h-100">
+                <div class="card-body d-flex flex-column justify-content-center text-center p-4">
+                    <i class="fa-solid fa-ranking-star dashboard-card-icon text-warning"></i>
+                    <h5 class="card-title mb-2">Frequência nas Aulas</h5>
+                    <p class="card-text text-body-secondary mb-0 d-none d-md-block">Presenças aprovadas na meta vigente.</p>
+                </div>
+            </div>
+        </button>
+    </div>
+</div>
+
+<div class="modal fade" id="modalRankingFrequencia" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalRankingFrequenciaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRankingFrequenciaLabel">Frequência nas Aulas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="ranking-table-scroll">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0 ranking-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center" style="width: 15%;">POS</th>
+                                    <th style="width: 60%;">ALUNO</th>
+                                    <th class="text-center" style="width: 25%;">TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rankingTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center text-body-secondary py-4">Carregando ranking…</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="rankingPaginationWrap" class="ranking-pagination-wrapper d-flex flex-column align-items-center gap-2 mt-3 d-none">
+                    <small class="text-body-secondary">Total de registros: <span id="rankingTotalItems">0</span></small>
+                    <nav class="ranking-pagination-nav" aria-label="Paginação do ranking">
+                        <ul class="pagination pagination-sm mb-0" id="rankingPaginationUl"></ul>
+                    </nav>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rankingAlunoModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="rankingAlunoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rankingAlunoModalLabel">Dados do aluno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="rankingAlunoModalAvatar" src="/uploads/users/default.jpg" alt="Avatar do aluno" class="ranking-aluno-avatar mb-3">
+                <div id="rankingAlunoModalNome" class="fw-semibold fs-5 mb-2">-</div>
+                <div id="rankingAlunoModalPresencas" class="text-body-secondary mb-3">0 Presenças</div>
+                <div class="mb-3">
+                    <img id="rankingAlunoModalBelt" src="/img/belts/white_0.png" alt="Faixa do aluno" class="ranking-aluno-belt-image">
+                </div>
+                <div id="rankingAlunoModalPosicao" class="fw-semibold">Posição no Ranking: #—</div>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+        const rankingModalEl = document.getElementById('modalRankingFrequencia');
+        const rankingTableBody = document.getElementById('rankingTableBody');
+        const rankingPaginationWrap = document.getElementById('rankingPaginationWrap');
+        const rankingTotalItems = document.getElementById('rankingTotalItems');
+        const rankingPaginationUl = document.getElementById('rankingPaginationUl');
+        const rankingAlunoModalEl = document.getElementById('rankingAlunoModal');
+
+        if (!rankingModalEl || !rankingTableBody || !window.bootstrap) {
+            return;
+        }
+
+        const rankingModal = bootstrap.Modal.getOrCreateInstance(rankingModalEl);
+        const rankingAlunoModal = rankingAlunoModalEl
+            ? bootstrap.Modal.getOrCreateInstance(rankingAlunoModalEl)
+            : null;
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function openRankingAlunoModal(trigger) {
+            if (!rankingAlunoModal || !trigger) {
+                return;
+            }
+
+            const fullName = trigger.getAttribute('data-full-name') || '-';
+            const photo = trigger.getAttribute('data-photo') || '/uploads/users/default.jpg';
+            const beltImage = trigger.getAttribute('data-belt-image') || '/img/belts/white_0.png';
+            const total = trigger.getAttribute('data-total') || '0';
+            const position = trigger.getAttribute('data-position') || '—';
+
+            const nomeEl = document.getElementById('rankingAlunoModalNome');
+            const avatarEl = document.getElementById('rankingAlunoModalAvatar');
+            const presencasEl = document.getElementById('rankingAlunoModalPresencas');
+            const beltEl = document.getElementById('rankingAlunoModalBelt');
+            const posicaoEl = document.getElementById('rankingAlunoModalPosicao');
+
+            if (nomeEl) nomeEl.textContent = fullName;
+            if (avatarEl) {
+                avatarEl.src = photo;
+                avatarEl.alt = `Avatar de ${fullName}`;
+            }
+            if (presencasEl) presencasEl.textContent = `${total} Presenças`;
+            if (beltEl) {
+                beltEl.src = beltImage;
+                beltEl.alt = `Faixa de ${fullName}`;
+            }
+            if (posicaoEl) posicaoEl.textContent = `Posição no Ranking: #${position}`;
+
+            rankingAlunoModal.show();
+        }
+
+        function bindRankingRowEvents() {
+            const rows = Array.from(rankingTableBody.querySelectorAll('.ranking-row-clickable'));
+            rows.forEach((row) => {
+                row.addEventListener('click', () => openRankingAlunoModal(row));
+                row.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openRankingAlunoModal(row);
+                    }
+                });
+            });
+        }
+
+        function getTopFiveFrameCellClass(position, colIndex, items) {
+            if (position > 5) {
+                return '';
+            }
+
+            const topFiveItems = items.filter((entry) => entry.position <= 5);
+            if (!topFiveItems.length) {
+                return '';
+            }
+
+            const minPosition = Math.min(...topFiveItems.map((entry) => entry.position));
+            const maxPosition = Math.max(...topFiveItems.map((entry) => entry.position));
+            const classes = [];
+
+            if (position === minPosition) {
+                classes.push('ranking-top-frame-top');
+            }
+            if (position === maxPosition) {
+                classes.push('ranking-top-frame-bottom');
+            }
+            if (colIndex === 0) {
+                classes.push('ranking-top-frame-left');
+            }
+            if (colIndex === 2) {
+                classes.push('ranking-top-frame-right');
+            }
+
+            return classes.length ? ` ${classes.join(' ')}` : '';
+        }
+
+        function renderRankingTable(items) {
+            if (!items.length) {
+                rankingTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-body-secondary py-4">Nenhum aluno encontrado.</td></tr>';
+                return;
+            }
+
+            rankingTableBody.innerHTML = items.map((item) => {
+                const posCellClass = getTopFiveFrameCellClass(item.position, 0, items);
+                const alunoCellClass = getTopFiveFrameCellClass(item.position, 1, items);
+                const totalCellClass = getTopFiveFrameCellClass(item.position, 2, items);
+
+                return `
+                    <tr
+                        class="ranking-row-clickable"
+                        role="button"
+                        tabindex="0"
+                        data-full-name="${escapeHtml(item.full_name)}"
+                        data-photo="${escapeHtml(item.photo)}"
+                        data-belt-image="${escapeHtml(item.belt_image_path)}"
+                        data-total="${escapeHtml(String(item.total))}"
+                        data-position="${escapeHtml(String(item.position))}"
+                    >
+                        <td class="text-center align-middle${posCellClass}">${escapeHtml(String(item.position))}</td>
+                        <td class="align-middle text-start ranking-col-aluno${alunoCellClass}">${escapeHtml(item.full_name)}</td>
+                        <td class="text-center align-middle${totalCellClass}">${escapeHtml(String(item.total))}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            bindRankingRowEvents();
+        }
+
+        function renderRankingPagination(pagination, loadPage) {
+            if (!rankingPaginationWrap || !rankingTotalItems || !rankingPaginationUl) {
+                return;
+            }
+
+            rankingTotalItems.textContent = String(pagination.totalItems || 0);
+            rankingPaginationUl.innerHTML = '';
+
+            if (!pagination.totalItems) {
+                rankingPaginationWrap.classList.add('d-none');
+                return;
+            }
+
+            rankingPaginationWrap.classList.remove('d-none');
+
+            const appendPageButton = (label, pageNum, disabled, isActive) => {
+                const li = document.createElement('li');
+                li.className = 'page-item';
+                if (disabled) li.classList.add('disabled');
+                if (isActive) li.classList.add('active');
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'page-link';
+                btn.textContent = label;
+                if (disabled || isActive) {
+                    btn.disabled = true;
+                } else {
+                    btn.addEventListener('click', () => loadPage(pageNum));
+                }
+
+                li.appendChild(btn);
+                rankingPaginationUl.appendChild(li);
+            };
+
+            appendPageButton('Anterior', pagination.prevPage, !pagination.hasPrev, false);
+            (pagination.pageNumbers || []).forEach((pageNumber) => {
+                appendPageButton(String(pageNumber.number), pageNumber.number, false, !!pageNumber.isCurrent);
+            });
+            appendPageButton('Próxima', pagination.nextPage, !pagination.hasNext, false);
+        }
+
+        async function loadRankingData(page) {
+            rankingTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-body-secondary py-4">Carregando ranking…</td></tr>';
+            if (rankingPaginationWrap) {
+                rankingPaginationWrap.classList.add('d-none');
+            }
+
+            try {
+                const response = await fetch(`/ranking/dados?page=${encodeURIComponent(String(page))}`, {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' }
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.mensagem || 'Não foi possível carregar o ranking.');
+                }
+
+                renderRankingTable(data.items || []);
+                if (data.pagination) {
+                    renderRankingPagination(data.pagination, loadRankingData);
+                }
+            } catch (error) {
+                rankingTableBody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-4">${escapeHtml(error.message || 'Erro ao carregar.')}</td></tr>`;
+                if (rankingPaginationWrap) {
+                    rankingPaginationWrap.classList.add('d-none');
+                }
+            }
+        }
+
+        rankingModalEl.addEventListener('show.bs.modal', () => {
+            loadRankingData(1);
+        });
+    });
+})();
+</script>

@@ -26,7 +26,18 @@ function ensureAdminRoute(req, res) {
     return null;
 }
 
+/** Rankings internos: aluno, professor ou administrador. */
+function ensureRankingRoute(req, res) {
+    const role = req.session.usuario?.role;
+    if (!['STD', 'PRO', 'ADM'].includes(role)) {
+        const vm = getErrorViewModel(403);
+        return res.status(403).render('errors/error', vm);
+    }
+    return null;
+}
+
 module.exports = {
     ensureProfessorRoute,
-    ensureAdminRoute
+    ensureAdminRoute,
+    ensureRankingRoute
 };

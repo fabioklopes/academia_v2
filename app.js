@@ -43,6 +43,7 @@ const MetaAula = require('./models/MetaAula');
 const MetaAulaTurma = require('./models/MetaAulaTurma');
 const AppActivityLog = require('./models/AppActivityLog');
 const Notificacao = require('./models/Notificacao');
+const Permissao = require('./models/Permissao');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -59,6 +60,10 @@ const {
     findVisibleMassMessageForStudent,
     markMassMessageAsRead
 } = require('./services/professor_mass_messages');
+const {
+    initializeWhatsappNotifications,
+    enqueueSend: enqueueWhatsappSend
+} = require('./services/whatsapp_notifications');
 const { createStudentNavLocalsMiddleware } = require('./middleware/student_nav_locals');
 const { createAdminLogLocalsMiddleware } = require('./middleware/admin_log_locals');
 const {
@@ -1467,6 +1472,10 @@ app.post('/metasdeaula', async (req, res) => {
                     
                     try {
                         await MensagemProfessorLeitura.bulkCreate(leituraPayload);
+                        sendWhatsappNotificationToUserCodes(
+                            studentUserCodes,
+                            'Nova meta de aula criada para sua turma. Acesse a plataforma para ver os detalhes.'
+                        );
                     } catch (leituraError) {
                         console.error('Erro ao marcar mensagens como não-lidas:', leituraError);
                     }
@@ -1581,6 +1590,10 @@ app.post('/mensagens', async (req, res) => {
                         viewed_at: null
                     });
                 });
+                sendWhatsappNotificationToUserCodes(
+                    studentUserCodes,
+                    'Há uma nova mensagem em massa disponível para você. Verifique a plataforma para ler.'
+                );
             });
             
             try {
@@ -1717,9 +1730,13 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
                         });
                     });
                 });
-                
+
                 try {
                     await MensagemProfessorLeitura.bulkCreate(leituraPayload);
+                    sendWhatsappNotificationToUserCodes(
+                        studentUserCodes,
+                        'Uma mensagem em massa foi reativada para sua turma. Acesse a plataforma para conferir.'
+                    );
                 } catch (leituraError) {
                     console.error('Erro ao marcar mensagens replicadas como não-lidas:', leituraError);
                 }
@@ -2450,6 +2467,10 @@ app.get('/meuperfil', requireMeuPerfilSession, async (req, res) => {
             where: { responsible_id: titularId, user_status: 'A' }
         });
 
+        const permissoes = await Permissao.findOne({ where: { user_code: usuario.user_code } });
+        const usuarioPlain = usuario.get({ plain: true });
+        usuarioPlain.whatsapp_notifications_enabled = permissoes ? Boolean(permissoes.whatsapp_notifications_enabled) : true;
+
         const beltOptions = BELT_OPTIONS.map((option) => ({
             ...option,
             selected: option.value === usuario.actual_belt
@@ -2464,7 +2485,7 @@ app.get('/meuperfil', requireMeuPerfilSession, async (req, res) => {
 
         return res.render('meuperfil', {
             pageTitle: 'Meu Perfil',
-            usuario: usuario.get({ plain: true }),
+            usuario: usuarioPlain,
             beltOptions,
             degreeOptions,
             kimonoSizeOptions: KIMONO_WAGI_ZUBON_SIZE_OPTIONS,
@@ -2512,6 +2533,10 @@ app.post('/meuperfil/dados-pessoais', requireMeuPerfilSession, async (req, res) 
         usuario.first_name = firstName;
         usuario.last_name = lastName;
         usuario.phone = phoneDigits;
+
+        const whatsappEnabled = req.body.whatsapp_notifications_enabled === 'on' || req.body.whatsapp_notifications_enabled === 'true';
+        await ensureWhatsappPermissionForUser(usuario, whatsappEnabled);
+
         usuario.actual_belt = beltDegreeValidation.beltValue;
         usuario.actual_degree = beltDegreeValidation.degreeValue;
         await usuario.save();
@@ -3210,6 +3235,10 @@ app.get('/aluno/status/:id', (req, res) => {
 
             usuario.user_status = 'A';
             await usuario.save();
+            await sendWhatsappNotificationToUsuario(
+                usuario,
+                'Seu cadastro foi aprovado. Acesse a plataforma para verificar seu perfil e continuar.'
+            );
             const finalizedPhoto = await finalizePendingPhotoIfNeeded(usuario);
             return finalizedPhoto;
         } else {
@@ -3241,6 +3270,11 @@ app.get('/aluno/status/negar/:id', async (req, res) => {
         if (!usuario) {
             throw new Error('Aluno não encontrado');
         }
+
+        await sendWhatsappNotificationToUsuario(
+            usuario,
+            'Seu cadastro foi negado. Acesse a plataforma para saber mais e tentar novamente, se necessário.'
+        );
 
         if (usuario.user_status !== 'P') {
             throw new Error('Somente cadastros pendentes podem ser negados');
@@ -3560,20 +3594,22 @@ app.post('/promoveraluno', async (req, res) => {
             if (usuario.role !== 'STD') {
                 return res.status(400).json({ ok: false, error: 'Apenas alunos podem ser promovidos a professor.' });
             }
-            if (usuario.user_status !== 'A') {
-                return res.status(400).json({
-                    ok: false,
-                    error: 'Somente alunos ativos podem ser promovidos a professor.'
-                });
-            }
             usuario.role = 'PRO';
             await usuario.save();
+            sendWhatsappNotificationToUsuario(
+                usuario,
+                'Seu perfil foi atualizado para Professor. Acesse a plataforma para conferir suas novas permissões.'
+            );
         } else {
             if (usuario.role !== 'PRO') {
                 return res.status(400).json({ ok: false, error: 'Apenas professores podem ser definidos como alunos.' });
             }
             usuario.role = 'STD';
             await usuario.save();
+            sendWhatsappNotificationToUsuario(
+                usuario,
+                'Seu perfil foi atualizado para Aluno. Acesse a plataforma para conferir as mudanças.'
+            );
         }
 
         const sessao = req.session.usuario;
@@ -3862,6 +3898,86 @@ function buildPresencaViewModel(p) {
         status_class: statusClassMap[plain.status] || '',
         class_type_display: classTypeDisplayMap[plain.class_type] || plain.class_type
     };
+}
+
+async function getWhatsappPermissionForUserCode(userCode) {
+    if (!userCode) {
+        return true;
+    }
+
+    const permissoes = await Permissao.findOne({ where: { user_code: normalizeUserCode(userCode) } });
+    if (!permissoes) {
+        return true;
+    }
+    return Boolean(permissoes.whatsapp_notifications_enabled);
+}
+
+async function ensureWhatsappPermissionForUser(usuario, enabled = true) {
+    if (!usuario || !usuario.user_code) {
+        return null;
+    }
+
+    const userCode = normalizeUserCode(usuario.user_code);
+    const [perm] = await Permissao.findOrCreate({
+        where: { user_code: userCode },
+        defaults: {
+            whatsapp_notifications_enabled: enabled
+        }
+    });
+
+    if (perm.whatsapp_notifications_enabled !== enabled) {
+        perm.whatsapp_notifications_enabled = enabled;
+        await perm.save();
+    }
+
+    return perm;
+}
+
+async function sendWhatsappNotificationToUsuario(usuario, text) {
+    if (!usuario || !usuario.user_code || !usuario.phone || !text) {
+        return false;
+    }
+
+    const normalizedCode = normalizeUserCode(usuario.user_code);
+    const enabled = await getWhatsappPermissionForUserCode(normalizedCode);
+    if (!enabled) {
+        return false;
+    }
+
+    try {
+        enqueueWhatsappSend(usuario.phone, text);
+        return true;
+    } catch (err) {
+        console.error('Erro ao enviar notificação WhatsApp para', normalizedCode, err.message);
+        return false;
+    }
+}
+
+async function sendWhatsappNotificationToUserCode(userCode, text) {
+    if (!userCode || !text) {
+        return false;
+    }
+
+    const normalizedCode = normalizeUserCode(userCode);
+    const usuario = await Usuario.findOne({
+        where: { user_code: normalizedCode, user_status: 'A' },
+        attributes: ['user_code', 'first_name', 'last_name', 'phone']
+    });
+    if (!usuario || !usuario.phone) {
+        return false;
+    }
+
+    return sendWhatsappNotificationToUsuario(usuario, text);
+}
+
+async function sendWhatsappNotificationToUserCodes(userCodes, text) {
+    if (!Array.isArray(userCodes) || !text) {
+        return;
+    }
+
+    for (const code of userCodes) {
+        await sendWhatsappNotificationToUserCode(code, text);
+    }
 }
 
 /** Cria notificação in-app quando o professor aprova ou nega uma solicitação de presença. */
@@ -5264,12 +5380,12 @@ registerAuthRoutes(app, { buildBirthdayLoginModalData });
 app.use(createNotFoundMiddleware({ isProduction }));
 app.use(createErrorMiddleware({ isProduction }));
 
-// execução do servidor (apenas quando o arquivo é o ponto de entrada — não em testes Jest)
 const PORT = process.env.ENV_PORT || 3000;
 
 if (require.main === module) {
     ensureTurmaSchema()
         .then(() => ensureUsuarioEmailNotUnique())
+        .then(() => initializeWhatsappNotifications())
         .then(() => initializeIgnition())
         .then((needsSetup) => {
             app.listen(PORT, function () {

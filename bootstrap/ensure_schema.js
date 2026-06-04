@@ -16,6 +16,7 @@ const MensagemProfessorOcultacao = require('../models/MensagemProfessorOcultacao
 const MensagemProfessorLeitura = require('../models/MensagemProfessorLeitura');
 const AppActivityLog = require('../models/AppActivityLog');
 const Notificacao = require('../models/Notificacao');
+const Permissao = require('../models/Permissao');
 const { sequelize, Sequelize } = require('../models/db');
 
 const USUARIOS_TABLE = 'tb_usuarios';
@@ -179,6 +180,7 @@ async function ensureTurmaSchema() {
     await MensagemProfessorLeitura.sync();
     await AppActivityLog.sync();
     await Notificacao.sync();
+    await Permissao.sync();
     await ensureUsuarioClassCodeColumn();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();

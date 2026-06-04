@@ -433,9 +433,14 @@
 ════════════════════════════════════════════════════ -->
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h1 class="mb-0">Presenças</h1>
-    <button type="button" class="btn btn-primary" id="btnNovaPresenca">
-        <i class="fa-solid fa-plus"></i> Nova Solicitação
-    </button>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary" id="btnPresencaExpress" title="Solicitar presença do dia (Express)">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </button>
+        <button type="button" class="btn btn-primary" id="btnNovaPresenca">
+            <i class="fa-solid fa-plus"></i> Solicitações
+        </button>
+    </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════
@@ -622,6 +627,70 @@
                 </button>
                 <button type="button" id="dcBtnFechar" class="btn btn-outline-secondary">
                     <i class="fa-solid fa-arrow-left"></i> Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: EXPRESS (solicitar presença do dia de hoje)
+════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalPresencaExpress" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalPresencaExpressLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPresencaExpressLabel">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Solicitar Presença Express
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3 text-body-secondary" id="expressDataInfo"></p>
+                
+                {{#if requiresTurmaSelection}}
+                <div class="form-floating mb-3">
+                    <select id="expressClassCode" class="form-select" required>
+                        <option value="">-- Selecione --</option>
+                        {{#each turmasSolicitacao}}
+                        <option value="{{class_code}}">{{class_name}} ({{class_code}})</option>
+                        {{/each}}
+                    </select>
+                    <label for="expressClassCode">Turma da solicitação</label>
+                </div>
+                {{else}}
+                <input type="hidden" id="expressClassCode" value="{{defaultClassCode}}">
+                {{/if}}
+
+                <div id="expressAulaSelector" style="display: none;">
+                    <label class="form-label fw-semibold mb-2">Qual aula você participou?</label>
+                    <div class="d-flex flex-column gap-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expressAula" id="expressAula1" value="Gi">
+                            <label class="form-check-label" for="expressAula1">
+                                1ª Aula (Gi)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expressAula" id="expressAula2" value="No-Gi">
+                            <label class="form-check-label" for="expressAula2">
+                                2ª Aula (No-Gi)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="expressAula" id="expressAulaIntegral" value="Integral" checked>
+                            <label class="form-check-label" for="expressAulaIntegral">
+                                Aula Integral (ambas)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnExpressSolicitar" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i> Solicitar
                 </button>
             </div>
         </div>
@@ -1094,6 +1163,111 @@
         renderCalendar();
         new bootstrap.Modal(document.getElementById('modalNovaPresenca')).show();
     });
+
+    /* ════════════════════════════════
+       BOTÃO PRESENÇA EXPRESS
+    ════════════════════════════════ */
+    function initExpressButton() {
+        const btnExpress = document.getElementById('btnPresencaExpress');
+        if (!btnExpress) return;
+
+        btnExpress.addEventListener('click', () => {
+            const today = new Date();
+            const todayIsoStr = toIso(today.getFullYear(), today.getMonth(), today.getDate());
+            const dayOfWeek = today.getDay(); // 0=Dom, 2=Ter, 4=Qui
+            const isTuesdayToday = dayOfWeek === 2;
+
+            // Mostra informações na modal
+            const dataInfo = document.getElementById('expressDataInfo');
+            const dayNames = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+            dataInfo.textContent = `Solicitação de presença para ${ptShortDate(todayIsoStr)} (${dayNames[dayOfWeek]})`;
+
+            // Se for TER, mostra seletor de aula; caso contrário, esconde
+            const aulaSelector = document.getElementById('expressAulaSelector');
+            if (isTuesdayToday) {
+                aulaSelector.style.display = '';
+            } else {
+                aulaSelector.style.display = 'none';
+            }
+
+            // Prepara o evento de submit
+            const btnSubmit = document.getElementById('btnExpressSolicitar');
+            btnSubmit.onclick = async () => {
+                await submitExpressPresenca(todayIsoStr, isTuesdayToday);
+            };
+
+            // Abre o modal
+            new bootstrap.Modal(document.getElementById('modalPresencaExpress')).show();
+        });
+    }
+
+    async function submitExpressPresenca(dateIso, isTuesday) {
+        const classCode = document.getElementById('expressClassCode').value.trim();
+        
+        if (!classCode) {
+            alert('Selecione a turma para continuar.');
+            return;
+        }
+
+        let classType = 'Integral';
+        if (isTuesday) {
+            const selected = document.querySelector('input[name="expressAula"]:checked');
+            if (selected) {
+                classType = selected.value;
+            }
+        }
+
+        const btnSubmit = document.getElementById('btnExpressSolicitar');
+        btnSubmit.disabled = true;
+
+        try {
+            const res = await fetch('/presenca/solicitar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dates: [dateIso],
+                    classTypes: { [dateIso]: classType },
+                    classCode: classCode
+                })
+            });
+            const data = await res.json();
+
+            if (!data.ok) {
+                alert(data.mensagem || 'Erro ao solicitar presença.');
+                btnSubmit.disabled = false;
+                return;
+            }
+
+            // Adiciona nova presença ao estado local
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(p => {
+                    allPresencas.push(p);
+                });
+                shouldRefreshOnCalendarClose = true;
+                syncIndexes();
+            }
+
+            // Erros parciais
+            if (data.errors && data.errors.length > 0) {
+                const msgs = data.errors.map(e => `${ptShortDate(e.date)}: ${e.error}`).join('\n');
+                alert(`Erro:\n${msgs}`);
+                btnSubmit.disabled = false;
+                return;
+            }
+
+            // Sucesso
+            const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalPresencaExpress'));
+            if (bsModal) bsModal.hide();
+
+            // Aguarda um pouco e recarrega
+            setTimeout(() => window.location.reload(), 500);
+        } catch (e) {
+            alert('Erro de comunicação: ' + e.message);
+            btnSubmit.disabled = false;
+        }
+    }
+
+    initExpressButton();
 
     /* Init: renderiza lista modal se modal já estiver aberto (opcional) */
     document.getElementById('modalNovaPresenca').addEventListener('show.bs.modal', () => {

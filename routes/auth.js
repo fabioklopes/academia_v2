@@ -111,7 +111,9 @@ function registerAuthRoutes(app, deps) {
                 first_name: usuario.first_name,
                 last_name: usuario.last_name,
                 email: usuario.email,
-                role: usuario.role
+                role: usuario.role,
+                actual_belt: usuario.actual_belt || null,
+                actual_degree: usuario.actual_degree || null
             };
             req.session.lastActivity = Date.now();
 

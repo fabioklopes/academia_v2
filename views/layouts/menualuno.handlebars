@@ -6,6 +6,11 @@
         <i class="fa-solid fa-clipboard-user"></i> Meu Perfil
     </a>
 </li>
+<li class="nav-item">
+    <a class="nav-link" href="/katas-movimentos">
+        <i class="fa-solid fa-list-check"></i> Katas
+    </a>
+</li>
 
 <li class="nav-item px-3 pt-3 pb-1">
     <span class="small text-uppercase text-muted">Você no controle</span>
@@ -23,11 +28,6 @@
     <a class="nav-link d-flex align-items-center justify-content-between gap-2" href="{{studentNotificationsBell.href}}">
         <span><i class="fa-solid fa-bell"></i> Notificações</span>
         <span class="badge text-bg-primary app-nav-drawer-badge {{#unless studentNotificationsBell.hasUnread}}d-none{{/unless}}" id="studentNotificationsMenuBadge">{{studentNotificationsBell.unreadCount}}</span>
-    </a>
-</li>
-<li class="nav-item">
-    <a class="nav-link" href="/katas-movimentos">
-        <i class="fa-solid fa-list-check"></i> Katas
     </a>
 </li>
 <li class="nav-item">

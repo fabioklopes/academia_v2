@@ -44,13 +44,6 @@
                                     <label class="form-label" for="mp_phone">WhatsApp <span class="text-muted fw-normal">(apenas números)</span></label>
                                     <input type="text" class="form-control" id="mp_phone" name="phone" value="{{usuario.phone}}" inputmode="numeric" autocomplete="tel" maxlength="11" required placeholder="11999999999" pattern="[0-9]{11}" title="Digite 11 números (DDD + celular), sem espaços ou símbolos.">
                                 </div>
-                                <div class="col-12">
-                                    <div class="form-check form-switch mt-3">
-                                        <input class="form-check-input" type="checkbox" id="mp_whatsapp_notifications_enabled" name="whatsapp_notifications_enabled" {{#if usuario.whatsapp_notifications_enabled}}checked{{/if}}>
-                                        <label class="form-check-label" for="mp_whatsapp_notifications_enabled">Receber notificações breves no WhatsApp</label>
-                                    </div>
-                                    <div class="form-text">Mensagens curtas serão enviadas apenas para avisar sobre atualizações importantes no aplicativo.</div>
-                                </div>
                                 <div class="col-md-6">
                                     <label class="form-label" for="mp_actual_belt">Faixa atual</label>
                                     <select class="form-select" id="mp_actual_belt" name="actual_belt" required>

@@ -302,7 +302,9 @@ function registerIgnitionRoutes(app) {
                 first_name: admin.first_name,
                 last_name: admin.last_name,
                 email: admin.email,
-                role: admin.role
+                role: admin.role,
+                actual_belt: admin.actual_belt || null,
+                actual_degree: admin.actual_degree || null
             };
             req.session.lastActivity = Date.now();
 

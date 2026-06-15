@@ -20,6 +20,14 @@ function portalLocalsMiddleware(req, res, next) {
     }
 
     res.locals.useProfessorMenu = role === 'PRO' || role === 'ADM';
+
+    const currentAccount = req.session.viewingAs || req.session.usuario || null;
+    if (currentAccount && currentAccount.actual_belt && currentAccount.actual_degree != null) {
+        res.locals.currentUserBeltImagePath = `/img/belts/${currentAccount.actual_belt}_${currentAccount.actual_degree}.png`;
+    } else {
+        res.locals.currentUserBeltImagePath = null;
+    }
+
     next();
 }
 

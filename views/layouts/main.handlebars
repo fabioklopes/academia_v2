@@ -242,6 +242,11 @@
                         <span class="nav-link text-uppercase small px-0 pt-1 pb-0">
                             <i class="fa-solid fa-square-binary"></i> Código: {{usuarioLogado.user_code}}
                         </span>
+                        {{#if currentUserBeltImagePath}}
+                        <div class="px-0 pt-2">
+                            <img src="{{currentUserBeltImagePath}}" alt="Faixa atual" style="max-width: 100%; height: auto; display: block;">
+                        </div>
+                        {{/if}}
                     </li>
                     {{#if viewingAs}}
                     <li class="nav-item">
@@ -303,6 +308,12 @@
         <script src="/js/popper.min.js" defer></script>
         <script src="/js/bootstrap.min.js" defer></script>
         <script src="/js/auto-dismiss.js" defer></script>
+        <script>
+            document.addEventListener('hide.bs.modal', function(event) {
+                const focused = event.target.querySelector(':focus');
+                if (focused) focused.blur();
+            });
+        </script>
         <script>
             (function initAppDatepickers() {
                 const DATEPICKER_PT_BR = {

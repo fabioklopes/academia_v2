@@ -43,7 +43,6 @@ const MetaAula = require('./models/MetaAula');
 const MetaAulaTurma = require('./models/MetaAulaTurma');
 const AppActivityLog = require('./models/AppActivityLog');
 const Notificacao = require('./models/Notificacao');
-const Permissao = require('./models/Permissao');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -60,10 +59,6 @@ const {
     findVisibleMassMessageForStudent,
     markMassMessageAsRead
 } = require('./services/professor_mass_messages');
-const {
-    initializeWhatsappNotifications,
-    enqueueSend: enqueueWhatsappSend
-} = require('./services/whatsapp_notifications');
 const { createStudentNavLocalsMiddleware } = require('./middleware/student_nav_locals');
 const { createAdminLogLocalsMiddleware } = require('./middleware/admin_log_locals');
 const {
@@ -1472,10 +1467,6 @@ app.post('/metasdeaula', async (req, res) => {
                     
                     try {
                         await MensagemProfessorLeitura.bulkCreate(leituraPayload);
-                        sendWhatsappNotificationToUserCodes(
-                            studentUserCodes,
-                            'Nova meta de aula criada para sua turma. Acesse a plataforma para ver os detalhes.'
-                        );
                     } catch (leituraError) {
                         console.error('Erro ao marcar mensagens como não-lidas:', leituraError);
                     }
@@ -1590,10 +1581,6 @@ app.post('/mensagens', async (req, res) => {
                         viewed_at: null
                     });
                 });
-                sendWhatsappNotificationToUserCodes(
-                    studentUserCodes,
-                    'Há uma nova mensagem em massa disponível para você. Verifique a plataforma para ler.'
-                );
             });
             
             try {
@@ -1733,10 +1720,6 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
 
                 try {
                     await MensagemProfessorLeitura.bulkCreate(leituraPayload);
-                    sendWhatsappNotificationToUserCodes(
-                        studentUserCodes,
-                        'Uma mensagem em massa foi reativada para sua turma. Acesse a plataforma para conferir.'
-                    );
                 } catch (leituraError) {
                     console.error('Erro ao marcar mensagens replicadas como não-lidas:', leituraError);
                 }
@@ -2362,7 +2345,9 @@ app.get('/conta/trocar/:id', async (req, res) => {
             id: dependente.id,
             first_name: dependente.first_name,
             last_name: dependente.last_name,
-            responsible_id: dependente.responsible_id
+            responsible_id: dependente.responsible_id,
+            actual_belt: dependente.actual_belt || null,
+            actual_degree: dependente.actual_degree || null
         };
 
         return res.redirect('/dashboard');
@@ -2467,9 +2452,7 @@ app.get('/meuperfil', requireMeuPerfilSession, async (req, res) => {
             where: { responsible_id: titularId, user_status: 'A' }
         });
 
-        const permissoes = await Permissao.findOne({ where: { user_code: usuario.user_code } });
         const usuarioPlain = usuario.get({ plain: true });
-        usuarioPlain.whatsapp_notifications_enabled = permissoes ? Boolean(permissoes.whatsapp_notifications_enabled) : true;
 
         const beltOptions = BELT_OPTIONS.map((option) => ({
             ...option,
@@ -2533,10 +2516,6 @@ app.post('/meuperfil/dados-pessoais', requireMeuPerfilSession, async (req, res) 
         usuario.first_name = firstName;
         usuario.last_name = lastName;
         usuario.phone = phoneDigits;
-
-        const whatsappEnabled = req.body.whatsapp_notifications_enabled === 'on' || req.body.whatsapp_notifications_enabled === 'true';
-        await ensureWhatsappPermissionForUser(usuario, whatsappEnabled);
-
         usuario.actual_belt = beltDegreeValidation.beltValue;
         usuario.actual_degree = beltDegreeValidation.degreeValue;
         await usuario.save();
@@ -2544,11 +2523,15 @@ app.post('/meuperfil/dados-pessoais', requireMeuPerfilSession, async (req, res) 
         if (req.session.usuario.id === usuario.id && !req.session.viewingAs) {
             req.session.usuario.first_name = usuario.first_name;
             req.session.usuario.last_name = usuario.last_name;
+            req.session.usuario.actual_belt = usuario.actual_belt;
+            req.session.usuario.actual_degree = usuario.actual_degree;
         }
 
         if (req.session.viewingAs && req.session.viewingAs.id === usuario.id) {
             req.session.viewingAs.first_name = usuario.first_name;
             req.session.viewingAs.last_name = usuario.last_name;
+            req.session.viewingAs.actual_belt = usuario.actual_belt;
+            req.session.viewingAs.actual_degree = usuario.actual_degree;
         }
 
         return res.json({ ok: true, mensagem: 'Dados pessoais salvos com sucesso.' });
@@ -3235,10 +3218,6 @@ app.get('/aluno/status/:id', (req, res) => {
 
             usuario.user_status = 'A';
             await usuario.save();
-            await sendWhatsappNotificationToUsuario(
-                usuario,
-                'Seu cadastro foi aprovado. Acesse a plataforma para verificar seu perfil e continuar.'
-            );
             const finalizedPhoto = await finalizePendingPhotoIfNeeded(usuario);
             return finalizedPhoto;
         } else {
@@ -3270,11 +3249,6 @@ app.get('/aluno/status/negar/:id', async (req, res) => {
         if (!usuario) {
             throw new Error('Aluno não encontrado');
         }
-
-        await sendWhatsappNotificationToUsuario(
-            usuario,
-            'Seu cadastro foi negado. Acesse a plataforma para saber mais e tentar novamente, se necessário.'
-        );
 
         if (usuario.user_status !== 'P') {
             throw new Error('Somente cadastros pendentes podem ser negados');
@@ -3596,20 +3570,12 @@ app.post('/promoveraluno', async (req, res) => {
             }
             usuario.role = 'PRO';
             await usuario.save();
-            sendWhatsappNotificationToUsuario(
-                usuario,
-                'Seu perfil foi atualizado para Professor. Acesse a plataforma para conferir suas novas permissões.'
-            );
         } else {
             if (usuario.role !== 'PRO') {
                 return res.status(400).json({ ok: false, error: 'Apenas professores podem ser definidos como alunos.' });
             }
             usuario.role = 'STD';
             await usuario.save();
-            sendWhatsappNotificationToUsuario(
-                usuario,
-                'Seu perfil foi atualizado para Aluno. Acesse a plataforma para conferir as mudanças.'
-            );
         }
 
         const sessao = req.session.usuario;
@@ -3898,86 +3864,6 @@ function buildPresencaViewModel(p) {
         status_class: statusClassMap[plain.status] || '',
         class_type_display: classTypeDisplayMap[plain.class_type] || plain.class_type
     };
-}
-
-async function getWhatsappPermissionForUserCode(userCode) {
-    if (!userCode) {
-        return true;
-    }
-
-    const permissoes = await Permissao.findOne({ where: { user_code: normalizeUserCode(userCode) } });
-    if (!permissoes) {
-        return true;
-    }
-    return Boolean(permissoes.whatsapp_notifications_enabled);
-}
-
-async function ensureWhatsappPermissionForUser(usuario, enabled = true) {
-    if (!usuario || !usuario.user_code) {
-        return null;
-    }
-
-    const userCode = normalizeUserCode(usuario.user_code);
-    const [perm] = await Permissao.findOrCreate({
-        where: { user_code: userCode },
-        defaults: {
-            whatsapp_notifications_enabled: enabled
-        }
-    });
-
-    if (perm.whatsapp_notifications_enabled !== enabled) {
-        perm.whatsapp_notifications_enabled = enabled;
-        await perm.save();
-    }
-
-    return perm;
-}
-
-async function sendWhatsappNotificationToUsuario(usuario, text) {
-    if (!usuario || !usuario.user_code || !usuario.phone || !text) {
-        return false;
-    }
-
-    const normalizedCode = normalizeUserCode(usuario.user_code);
-    const enabled = await getWhatsappPermissionForUserCode(normalizedCode);
-    if (!enabled) {
-        return false;
-    }
-
-    try {
-        enqueueWhatsappSend(usuario.phone, text);
-        return true;
-    } catch (err) {
-        console.error('Erro ao enviar notificação WhatsApp para', normalizedCode, err.message);
-        return false;
-    }
-}
-
-async function sendWhatsappNotificationToUserCode(userCode, text) {
-    if (!userCode || !text) {
-        return false;
-    }
-
-    const normalizedCode = normalizeUserCode(userCode);
-    const usuario = await Usuario.findOne({
-        where: { user_code: normalizedCode, user_status: 'A' },
-        attributes: ['user_code', 'first_name', 'last_name', 'phone']
-    });
-    if (!usuario || !usuario.phone) {
-        return false;
-    }
-
-    return sendWhatsappNotificationToUsuario(usuario, text);
-}
-
-async function sendWhatsappNotificationToUserCodes(userCodes, text) {
-    if (!Array.isArray(userCodes) || !text) {
-        return;
-    }
-
-    for (const code of userCodes) {
-        await sendWhatsappNotificationToUserCode(code, text);
-    }
 }
 
 /** Cria notificação in-app quando o professor aprova ou nega uma solicitação de presença. */
@@ -5385,7 +5271,6 @@ const PORT = process.env.ENV_PORT || 3000;
 if (require.main === module) {
     ensureTurmaSchema()
         .then(() => ensureUsuarioEmailNotUnique())
-        .then(() => initializeWhatsappNotifications())
         .then(() => initializeIgnition())
         .then((needsSetup) => {
             app.listen(PORT, function () {

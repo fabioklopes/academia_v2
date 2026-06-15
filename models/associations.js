@@ -8,7 +8,6 @@ const Turma = require('./Turma');
 const MetaAula = require('./MetaAula');
 const MetaAulaTurma = require('./MetaAulaTurma');
 const Notificacao = require('./Notificacao');
-const Permissao = require('./Permissao');
 
 MetaAula.belongsTo(Usuario, {
     as: 'criador',
@@ -44,8 +43,3 @@ Notificacao.belongsTo(Usuario, {
     targetKey: 'user_code'
 });
 
-Permissao.belongsTo(Usuario, {
-    as: 'usuario',
-    foreignKey: 'user_code',
-    targetKey: 'user_code'
-});

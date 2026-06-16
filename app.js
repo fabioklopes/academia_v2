@@ -4023,16 +4023,19 @@ app.get('/admin/logs', async (req, res) => {
             )
         ];
         const codesWithProfile = new Set();
+        const codeToName = {};
         if (codesOnPage.length > 0) {
             const foundUsers = await Usuario.findAll({
                 where: { user_code: { [Op.in]: codesOnPage } },
-                attributes: ['user_code'],
+                attributes: ['user_code', 'first_name', 'last_name'],
                 raw: true
             });
             foundUsers.forEach((u) => {
                 const c = String(u.user_code || '').trim().toUpperCase();
                 if (c) {
                     codesWithProfile.add(c);
+                    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
+                    if (fullName) codeToName[c] = fullName;
                 }
             });
         }
@@ -4047,10 +4050,33 @@ app.get('/admin/logs', async (req, res) => {
             .map((r) => String(r.user_code || '').trim().toUpperCase())
             .filter(Boolean);
 
-        const userFilterOptions = userCodesForFilter.map((code) => ({
-            code,
-            selected: user_code !== 'todos' && user_code === code
-        }));
+        let filterCodeToName = {};
+        if (userCodesForFilter.length > 0) {
+            const filterUsers = await Usuario.findAll({
+                where: { user_code: { [Op.in]: userCodesForFilter } },
+                attributes: ['user_code', 'first_name', 'last_name'],
+                raw: true
+            });
+            filterUsers.forEach((u) => {
+                const c = String(u.user_code || '').trim().toUpperCase();
+                if (c) {
+                    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
+                    if (fullName) filterCodeToName[c] = fullName;
+                }
+            });
+        }
+
+        const userFilterOptions = userCodesForFilter
+            .map((code) => ({
+                code,
+                name: filterCodeToName[code] || null,
+                selected: user_code !== 'todos' && user_code === code
+            }))
+            .sort((a, b) => {
+                const nameA = a.name || a.code;
+                const nameB = b.name || b.code;
+                return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+            });
 
         const filterForView = {
             ...filterState,

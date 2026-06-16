@@ -56,7 +56,7 @@
                     <select class="form-select" id="filtroUsuario" name="user_code">
                         <option value="todos" {{#if filter.userTodos}}selected{{/if}}>Todos</option>
                         {{#each userFilterOptions}}
-                            <option value="{{code}}" {{#if selected}}selected{{/if}}>{{code}}</option>
+                            <option value="{{code}}" {{#if selected}}selected{{/if}}>{{#if name}}{{name}} ({{code}}){{else}}{{code}}{{/if}}</option>
                         {{/each}}
                     </select>
                 </div>

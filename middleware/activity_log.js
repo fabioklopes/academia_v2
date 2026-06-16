@@ -53,7 +53,7 @@ function createActivityLogMiddleware() {
             return next();
         }
 
-        res.on('finish', () => {
+        res.on('finish', async () => {
             const userCode = resolveActivityLogUserCode(req);
             if (!userCode) {
                 return;
@@ -66,14 +66,21 @@ function createActivityLogMiddleware() {
                 endpoint = endpoint.slice(0, 500);
             }
             const action = normalizeAppActivityAction(req.method);
-            void AppActivityLog.create({
-                user_code: userCode,
-                action,
-                endpoint,
-                status
-            }).catch((err) => {
+
+            try {
+                const last = await AppActivityLog.findOne({
+                    where: { user_code: userCode },
+                    order: [['id', 'DESC']],
+                    attributes: ['action', 'endpoint'],
+                    raw: true
+                });
+                if (last && last.action === action && last.endpoint === endpoint) {
+                    return;
+                }
+                await AppActivityLog.create({ user_code: userCode, action, endpoint, status });
+            } catch (err) {
                 console.error('Erro ao registrar log de atividade:', err.message);
-            });
+            }
         });
 
         next();

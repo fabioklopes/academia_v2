@@ -24,6 +24,5 @@ Thumbs.db
 .tmp*
 tmp_*.js
 
-# WhatsApp Web session data
-.whatsapp-session/
+# temp
 

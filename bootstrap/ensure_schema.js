@@ -109,19 +109,7 @@ async function ensureUsuarioEmailNotUnique() {
     }
 }
 
-/** Remove a tabela tb_permissoes (módulo WhatsApp descontinuado). */
-async function dropPermissoesTableIfExists() {
-    const dialect = sequelize.getDialect();
-    if (dialect !== 'mysql' && dialect !== 'mariadb') {
-        return;
-    }
-    try {
-        await sequelize.query('DROP TABLE IF EXISTS `tb_permissoes`');
-        console.log('Tabela tb_permissoes removida (módulo WhatsApp descontinuado).');
-    } catch (err) {
-        console.error('Aviso: não foi possível remover tb_permissoes:', err.message);
-    }
-}
+// Antigas referências a permissões externas removidas.
 
 /** Adiciona coluna class_code em tb_usuarios se ainda não existir. */
 async function ensureUsuarioClassCodeColumn() {
@@ -180,7 +168,6 @@ async function ensureUsuarioBirthdayMessagesDisabledYearColumn() {
  * tb_usuarios precisa existir antes de metas, mensagens etc.
  */
 async function ensureTurmaSchema() {
-    await dropPermissoesTableIfExists();
     await dedupeUsuarioRedundantIndexes();
     // sync() sem alter: evita criar dezenas de índices UNIQUE duplicados no MySQL.
     await Usuario.sync();
@@ -202,6 +189,5 @@ async function ensureTurmaSchema() {
 module.exports = {
     dedupeUsuarioRedundantIndexes,
     ensureUsuarioEmailNotUnique,
-    dropPermissoesTableIfExists,
     ensureTurmaSchema
 };

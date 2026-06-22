@@ -1,0 +1,366 @@
+<div class="container py-4">
+
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-4">
+        <div>
+            <a href="/atributos" class="btn btn-sm btn-outline-secondary mb-2">
+                <i class="fa-solid fa-arrow-left"></i> Voltar
+            </a>
+            <h1 class="mb-0">Mapeamento de Atributos</h1>
+        </div>
+    </div>
+
+    {{!-- Cabeçalho do aluno --}}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body d-flex align-items-center gap-3">
+            <img src="{{aluno.foto}}" alt="Foto" class="rounded-circle" width="60" height="60" style="object-fit:cover;border:2px solid rgba(0,0,0,.1)">
+            <div>
+                <div class="fs-5 fw-bold">{{aluno.nome}}</div>
+                <span class="badge belt-badge {{aluno.faixaBadge}}">Faixa</span>
+            </div>
+            <div class="ms-auto text-end">
+                <div class="overall-big">{{scores.overall}}</div>
+                <div class="overall-label-big">OVERALL RATING</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        {{!-- Radar Chart --}}
+        <div class="col-12 col-md-6">
+            <div class="card border-0 shadow-sm h-100" style="background:#0e0e0e">
+                <div class="card-body d-flex flex-column align-items-center justify-content-center py-4 gap-1">
+                    <div id="chartLabel" class="small fw-semibold" style="color:#888;letter-spacing:.06em;min-height:1.4em"></div>
+                    <canvas id="radarAtributos" width="320" height="320" style="border-radius:8px"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {{!-- Atributos em detalhe --}}
+        <div class="col-12 col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3">Atributos <span id="atribLabel" class="text-body-secondary fw-normal small"></span></h5>
+
+                    {{#each atributosForm}}
+                    <div class="atributo-row">
+                        <span class="atributo-icon">{{emoji}}</span>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-semibold small">{{label}}</span>
+                                <span class="fw-bold text-warning atrib-val" data-campo="{{campo}}">{{valor}}</span>
+                            </div>
+                            <div class="progress" style="height:8px">
+                                <div class="progress-bar atrib-bar" data-campo="{{campo}}" style="width:{{valor}}%;background:linear-gradient(90deg,#e65c00,#f9d423)"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{!-- Formulário de nova avaliação --}}
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body">
+            {{#if jaAvaliouHoje}}
+            <div class="alert alert-info mb-0">
+                <i class="fa-solid fa-circle-info"></i>
+                Este aluno já foi avaliado hoje. Para corrigir, exclua a avaliação no histórico e registre uma nova.
+            </div>
+            {{else}}
+            <h5 class="fw-bold mb-1"><i class="fa-solid fa-plus-circle text-success"></i> Nova avaliação</h5>
+            <p class="text-body-secondary small mb-3">Atribua de 0 a 3 pontos por atributo. Máximo 1 avaliação por dia.</p>
+
+            <form id="formAvaliar">
+                <input type="hidden" name="user_code" value="{{aluno.user_code}}">
+                <div class="row g-3">
+                    {{#each atributosForm}}
+                    <div class="col-6 col-md-4 col-lg-2">
+                        <label class="form-label fw-semibold small text-uppercase">{{label}}</label>
+                        <select class="form-select" name="{{campo}}">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>
+                    {{/each}}
+                </div>
+                <div class="mt-3 text-center">
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="fa-solid fa-floppy-disk"></i> Avaliar
+                    </button>
+                </div>
+            </form>
+
+            <div id="avisoAvaliacao" class="mt-3 d-none"></div>
+            {{/if}}
+        </div>
+    </div>
+
+    {{!-- Histórico de avaliações --}}
+    {{#if historico}}
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3"><i class="fa-solid fa-clock-rotate-left"></i> Histórico de Avaliações</h5>
+            <p class="text-body-secondary small mb-2">Clique em uma linha para visualizar aquela avaliação no gráfico.</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Data</th>
+                            <th class="text-center">Força</th>
+                            <th class="text-center">Técnica</th>
+                            <th class="text-center">Resistência</th>
+                            <th class="text-center">Agilidade</th>
+                            <th class="text-center">Ataque</th>
+                            <th class="text-center">Defesa</th>
+                            <th class="text-center">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaHistorico">
+                        {{#each historico}}
+                        <tr class="hist-row" style="cursor:pointer"
+                            data-id="{{id}}"
+                            data-data="{{data}}"
+                            data-forca="{{forca}}"
+                            data-tecnica="{{tecnica}}"
+                            data-resistencia="{{resistencia}}"
+                            data-agilidade="{{agilidade}}"
+                            data-ataque="{{ataque}}"
+                            data-defesa="{{defesa}}">
+                            <td>{{data}}</td>
+                            <td class="text-center">{{forca}}</td>
+                            <td class="text-center">{{tecnica}}</td>
+                            <td class="text-center">{{resistencia}}</td>
+                            <td class="text-center">{{agilidade}}</td>
+                            <td class="text-center">{{ataque}}</td>
+                            <td class="text-center">{{defesa}}</td>
+                            <td class="text-center" onclick="event.stopPropagation()">
+                                <button class="btn btn-sm btn-outline-danger btn-excluir" data-id="{{id}}" title="Excluir avaliação">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {{/each}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {{/if}}
+
+</div>
+
+<style>
+    .overall-big {
+        font-size: 3rem;
+        font-weight: 900;
+        color: #f5a623;
+        line-height: 1;
+    }
+    .overall-label-big {
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        color: #aaa;
+        text-transform: uppercase;
+    }
+    .atributo-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 1rem;
+    }
+    .atributo-row:last-child { margin-bottom: 0; }
+    .atributo-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: rgba(245,166,35,.10);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    .hist-row.table-active td { background: rgba(255,136,0,.12); }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    (() => {
+        const mediaData = {{{radarData}}};
+        const labels    = [['💪','FORÇA'],['🥊','TÉCNICA'],['⏱️','RESISTÊNCIA'],['🏃','AGILIDADE'],['🎯','ATAQUE'],['🛡️','DEFESA']];
+        const campos    = ['forca','tecnica','resistencia','agilidade','ataque','defesa'];
+
+        // ── Gráfico ──────────────────────────────────────────────────────────
+        const canvas = document.getElementById('radarAtributos');
+        const ctx    = canvas.getContext('2d');
+
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const r  = Math.min(canvas.width, canvas.height) * 0.42;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0,   'rgba(140, 10,  0, 0.95)');
+        grad.addColorStop(0.4, 'rgba(200, 50,  0, 0.90)');
+        grad.addColorStop(0.8, 'rgba(240,100,  0, 0.80)');
+        grad.addColorStop(1,   'rgba(255,160,  0, 0.60)');
+
+        const chart = new Chart(ctx, {
+            type: 'radar',
+            plugins: [],
+            data: {
+                labels,
+                datasets: [{
+                    data: mediaData,
+                    backgroundColor: grad,
+                    borderColor: '#ff8800',
+                    borderWidth: 2.5,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#ffffff',
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: false,
+                animation: { duration: 600, easing: 'easeInOutQuart' },
+                plugins: { legend: { display: false } },
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 100,
+                        ticks: { display: false, stepSize: 20 },
+                        pointLabels: {
+                            color: '#ffffff',
+                            font: { size: 15, weight: 'bold' },
+                            padding: 8
+                        },
+                        grid: {
+                            color: 'rgba(255,255,255,0.35)',
+                            lineWidth: 1,
+                            borderDash: [4, 4]
+                        },
+                        angleLines: {
+                            color: 'rgba(255,255,255,0.35)',
+                            lineWidth: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        const chartLabel = document.getElementById('chartLabel');
+        const atribLabel = document.getElementById('atribLabel');
+
+        // Atualiza gráfico + barras laterais com novos dados (escala 0-3 → 0-100)
+        function atualizarGrafico(vals, legenda) {
+            const scaled = vals.map(v => Math.round((v / 3) * 100));
+            chart.data.datasets[0].data = scaled;
+            chart.update();
+
+            chartLabel.textContent = legenda || '';
+            atribLabel.textContent = legenda ? `— ${legenda}` : '';
+
+            campos.forEach((campo, i) => {
+                const pct = scaled[i];
+                document.querySelectorAll(`.atrib-val[data-campo="${campo}"]`).forEach(el => el.textContent = pct);
+                document.querySelectorAll(`.atrib-bar[data-campo="${campo}"]`).forEach(el => el.style.width = pct + '%');
+            });
+        }
+
+        // Volta para a média geral
+        function restaurarMedia() {
+            chart.data.datasets[0].data = mediaData;
+            chart.update();
+            chartLabel.textContent = '';
+            atribLabel.textContent = '';
+
+            campos.forEach((campo, i) => {
+                const pct = mediaData[i];
+                document.querySelectorAll(`.atrib-val[data-campo="${campo}"]`).forEach(el => el.textContent = pct);
+                document.querySelectorAll(`.atrib-bar[data-campo="${campo}"]`).forEach(el => el.style.width = pct + '%');
+            });
+        }
+
+        // ── Clique no histórico ───────────────────────────────────────────────
+        let selectedRow = null;
+
+        document.querySelectorAll('.hist-row').forEach(row => {
+            row.addEventListener('click', () => {
+                if (selectedRow === row) {
+                    // Segundo clique na mesma linha: deseleciona e volta à média
+                    row.classList.remove('table-active');
+                    selectedRow = null;
+                    restaurarMedia();
+                    return;
+                }
+                if (selectedRow) selectedRow.classList.remove('table-active');
+                selectedRow = row;
+                row.classList.add('table-active');
+
+                const vals = campos.map(c => parseInt(row.dataset[c], 10) || 0);
+                atualizarGrafico(vals, row.dataset.data);
+            });
+        });
+
+        // ── Enviar avaliação ──────────────────────────────────────────────────
+        const formAvaliar = document.getElementById('formAvaliar');
+        if (formAvaliar) {
+            formAvaliar.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const aviso = document.getElementById('avisoAvaliacao');
+                const data  = new URLSearchParams(new FormData(formAvaliar));
+
+                try {
+                    const resp = await fetch('/atributos/avaliar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: data.toString()
+                    });
+                    const json = await resp.json();
+                    if (json.ok) {
+                        aviso.className = 'mt-3 alert alert-success';
+                        aviso.textContent = 'Avaliação registrada! Atualizando...';
+                        aviso.classList.remove('d-none');
+                        setTimeout(() => location.reload(), 1200);
+                    } else {
+                        aviso.className = 'mt-3 alert alert-danger';
+                        aviso.textContent = json.mensagem || 'Erro ao registrar avaliação.';
+                        aviso.classList.remove('d-none');
+                    }
+                } catch {
+                    aviso.className = 'mt-3 alert alert-danger';
+                    aviso.textContent = 'Erro de comunicação com o servidor.';
+                    aviso.classList.remove('d-none');
+                }
+            });
+        }
+
+        // ── Excluir avaliação ─────────────────────────────────────────────────
+        document.querySelectorAll('.btn-excluir').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Excluir esta avaliação?')) return;
+                const id = btn.dataset.id;
+                try {
+                    const resp = await fetch(`/atributos/avaliar/${id}`, { method: 'DELETE' });
+                    const json = await resp.json();
+                    if (json.ok) {
+                        const row = document.querySelector(`tr[data-id="${id}"]`);
+                        if (row) row.remove();
+                        setTimeout(() => location.reload(), 400);
+                    } else {
+                        alert(json.mensagem || 'Erro ao excluir.');
+                    }
+                } catch {
+                    alert('Erro de comunicação com o servidor.');
+                }
+            });
+        });
+    })();
+</script>

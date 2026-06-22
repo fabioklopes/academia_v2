@@ -43,6 +43,7 @@ const MetaAula = require('./models/MetaAula');
 const MetaAulaTurma = require('./models/MetaAulaTurma');
 const AppActivityLog = require('./models/AppActivityLog');
 const Notificacao = require('./models/Notificacao');
+const AtributoAvaliacao = require('./models/AtributoAvaliacao');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -5286,6 +5287,204 @@ app.post('/mensagens/mestre/:id/naoLida', async (req, res) => {
     }
 });
 
+
+// ============================================================================
+// MAPEAMENTO DE ATRIBUTOS
+// ============================================================================
+
+/** Calcula pontuação 0–100 para cada atributo e o overall rating. */
+function calcularAtributos(avaliacoes) {
+    const campos = ['forca', 'tecnica', 'resistencia', 'agilidade', 'ataque', 'defesa'];
+    const n = avaliacoes.length;
+
+    if (n === 0) {
+        return { forca: 0, tecnica: 0, resistencia: 0, agilidade: 0, ataque: 0, defesa: 0, overall: 0 };
+    }
+
+    const scores = {};
+    for (const campo of campos) {
+        const soma = avaliacoes.reduce((acc, a) => acc + (parseInt(a[campo], 10) || 0), 0);
+        scores[campo] = Math.round((soma / (n * 3)) * 100);
+    }
+
+    const somaTotal = campos.reduce((acc, c) => acc + scores[c], 0);
+    scores.overall = Math.round(somaTotal / campos.length);
+
+    return scores;
+}
+
+/** Lista todos os alunos STD ativos com seus ratings. */
+app.get('/atributos', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const alunos = await Usuario.findAll({
+        where: { role: 'STD', user_status: 'A' },
+        order: [['first_name', 'ASC'], ['last_name', 'ASC']]
+    });
+
+    const avaliacoesPorAluno = await AtributoAvaliacao.findAll({
+        where: { user_code: alunos.map(a => a.user_code) }
+    });
+
+    const mapaAvaliacoes = {};
+    for (const av of avaliacoesPorAluno) {
+        if (!mapaAvaliacoes[av.user_code]) mapaAvaliacoes[av.user_code] = [];
+        mapaAvaliacoes[av.user_code].push(av);
+    }
+
+    const lista = alunos.map(aluno => {
+        const avs = mapaAvaliacoes[aluno.user_code] || [];
+        const scores = calcularAtributos(avs);
+        return {
+            user_code: aluno.user_code,
+            nome: `${aluno.first_name} ${aluno.last_name}`,
+            foto: aluno.photo || '/uploads/users/default.jpg',
+            faixaBadge: getBeltBadgeClass(aluno.actual_belt),
+            totalAvaliacoes: avs.length,
+            overall: scores.overall,
+            forca: scores.forca,
+            tecnica: scores.tecnica,
+            resistencia: scores.resistencia,
+            agilidade: scores.agilidade,
+            ataque: scores.ataque,
+            defesa: scores.defesa,
+        };
+    }).sort((a, b) => b.overall - a.overall);
+
+    return res.render('atributos', {
+        titulo: 'Mapeamento de Atributos',
+        lista
+    });
+});
+
+/** Perfil de atributos de um aluno específico. */
+app.get('/atributos/aluno/:user_code', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const userCode = normalizeUserCode(req.params.user_code);
+    if (!userCode) return res.redirect('/atributos');
+
+    const aluno = await Usuario.findOne({ where: { user_code: userCode, role: 'STD' } });
+    if (!aluno) {
+        const vm = getErrorViewModel(404);
+        return res.status(404).render('errors/error', vm);
+    }
+
+    const avaliacoes = await AtributoAvaliacao.findAll({
+        where: { user_code: userCode },
+        order: [['evaluation_date', 'DESC']]
+    });
+
+    const scores = calcularAtributos(avaliacoes);
+    const hoje = getTodayYmd();
+    const jaAvaliouHoje = avaliacoes.some(a => a.evaluation_date === hoje);
+
+    const historicoVm = avaliacoes.map(a => ({
+        id: a.id,
+        data: formatDateBrFromYmd(a.evaluation_date),
+        forca: a.forca,
+        tecnica: a.tecnica,
+        resistencia: a.resistencia,
+        agilidade: a.agilidade,
+        ataque: a.ataque,
+        defesa: a.defesa
+    }));
+
+    const atributosForm = [
+        { campo: 'forca',      label: 'Força',       emoji: '💪', valor: scores.forca },
+        { campo: 'tecnica',    label: 'Técnica',     emoji: '🥊', valor: scores.tecnica },
+        { campo: 'resistencia',label: 'Resistência', emoji: '⏱️', valor: scores.resistencia },
+        { campo: 'agilidade',  label: 'Agilidade',   emoji: '🏃', valor: scores.agilidade },
+        { campo: 'ataque',     label: 'Ataque',      emoji: '🎯', valor: scores.ataque },
+        { campo: 'defesa',     label: 'Defesa',      emoji: '🛡️', valor: scores.defesa }
+    ];
+
+    return res.render('atributos_aluno', {
+        titulo: `Atributos — ${aluno.first_name} ${aluno.last_name}`,
+        aluno: {
+            user_code: aluno.user_code,
+            nome: `${aluno.first_name} ${aluno.last_name}`,
+            foto: aluno.photo || '/uploads/users/default.jpg',
+            faixaBadge: getBeltBadgeClass(aluno.actual_belt)
+        },
+        scores,
+        radarData: JSON.stringify([scores.forca, scores.tecnica, scores.resistencia, scores.agilidade, scores.ataque, scores.defesa]),
+        historico: historicoVm,
+        jaAvaliouHoje,
+        hoje,
+        atributosForm
+    });
+});
+
+/** Registra ou atualiza avaliação do dia para um aluno. */
+app.post('/atributos/avaliar', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const usuarioSessao = req.session.usuario;
+    const { user_code, forca, tecnica, resistencia, agilidade, ataque, defesa } = req.body;
+
+    const userCode = normalizeUserCode(user_code);
+    if (!userCode) return res.status(400).json({ ok: false, mensagem: 'Aluno inválido.' });
+
+    const parseAttr = (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isInteger(n) || n < 0 || n > 3) return null;
+        return n;
+    };
+
+    const attrs = {
+        forca: parseAttr(forca),
+        tecnica: parseAttr(tecnica),
+        resistencia: parseAttr(resistencia),
+        agilidade: parseAttr(agilidade),
+        ataque: parseAttr(ataque),
+        defesa: parseAttr(defesa)
+    };
+
+    if (Object.values(attrs).some(v => v === null)) {
+        return res.status(400).json({ ok: false, mensagem: 'Valores inválidos. Cada atributo deve ser entre 0 e 3.' });
+    }
+
+    const aluno = await Usuario.findOne({ where: { user_code: userCode, role: 'STD' } });
+    if (!aluno) return res.status(404).json({ ok: false, mensagem: 'Aluno não encontrado.' });
+
+    const hoje = getTodayYmd();
+
+    const jaExiste = await AtributoAvaliacao.findOne({ where: { user_code: userCode, evaluation_date: hoje } });
+    if (jaExiste) {
+        return res.status(409).json({ ok: false, mensagem: 'Este aluno já foi avaliado hoje. Exclua a avaliação existente para registrar uma nova.' });
+    }
+
+    const registro = await AtributoAvaliacao.create({
+        user_code: userCode,
+        evaluation_date: hoje,
+        ...attrs,
+        evaluated_by: usuarioSessao.user_code
+    });
+
+    return res.json({ ok: true, id: registro.id });
+});
+
+/** Remove uma avaliação pelo ID. */
+app.delete('/atributos/avaliar/:id', async (req, res) => {
+    const forbidden = ensureAdminRoute(req, res);
+    if (forbidden) return forbidden;
+
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ ok: false, mensagem: 'ID inválido.' });
+    }
+
+    const deletados = await AtributoAvaliacao.destroy({ where: { id } });
+    if (deletados === 0) {
+        return res.status(404).json({ ok: false, mensagem: 'Avaliação não encontrada.' });
+    }
+
+    return res.json({ ok: true });
+});
 
 registerAuthRoutes(app, { buildBirthdayLoginModalData });
 

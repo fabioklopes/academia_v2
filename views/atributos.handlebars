@@ -1,0 +1,134 @@
+<div class="container py-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-4">
+        <div>
+            <h1 class="mb-1">Mapeamento de Atributos</h1>
+            <div class="text-body-secondary">Perfil de desempenho dos alunos — clique em um aluno para ver detalhes.</div>
+        </div>
+    </div>
+
+    {{#if lista}}
+    <div class="row g-3">
+        {{#each lista}}
+        <div class="col-12 col-sm-6 col-xl-4">
+            <a href="/atributos/aluno/{{user_code}}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm border-0 atributo-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <img src="{{foto}}" alt="Foto" class="rounded-circle atributo-foto" width="48" height="48">
+                            <div class="flex-grow-1 overflow-hidden">
+                                <div class="fw-semibold text-truncate text-body">{{nome}}</div>
+                                <span class="badge belt-badge {{faixaBadge}} badge-sm">Faixa</span>
+                            </div>
+                            <div class="text-end">
+                                <div class="overall-number">{{overall}}</div>
+                                <div class="overall-label">OVERALL</div>
+                            </div>
+                        </div>
+
+                        <div class="row g-1 text-center small">
+                            <div class="col-4">
+                                <div class="atributo-mini-label">FORÇA</div>
+                                <div class="atributo-mini-valor">{{forca}}</div>
+                                <div class="progress" style="height:4px">
+                                    <div class="progress-bar bg-warning" style="width:{{forca}}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="atributo-mini-label">TÉCNICA</div>
+                                <div class="atributo-mini-valor">{{tecnica}}</div>
+                                <div class="progress" style="height:4px">
+                                    <div class="progress-bar bg-warning" style="width:{{tecnica}}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="atributo-mini-label">RESISTÊNCIA</div>
+                                <div class="atributo-mini-valor">{{resistencia}}</div>
+                                <div class="progress" style="height:4px">
+                                    <div class="progress-bar bg-warning" style="width:{{resistencia}}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-4 mt-2">
+                                <div class="atributo-mini-label">AGILIDADE</div>
+                                <div class="atributo-mini-valor">{{agilidade}}</div>
+                                <div class="progress" style="height:4px">
+                                    <div class="progress-bar bg-warning" style="width:{{agilidade}}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-4 mt-2">
+                                <div class="atributo-mini-label">ATAQUE</div>
+                                <div class="atributo-mini-valor">{{ataque}}</div>
+                                <div class="progress" style="height:4px">
+                                    <div class="progress-bar bg-warning" style="width:{{ataque}}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-4 mt-2">
+                                <div class="atributo-mini-label">DEFESA</div>
+                                <div class="atributo-mini-valor">{{defesa}}</div>
+                                <div class="progress" style="height:4px">
+                                    <div class="progress-bar bg-warning" style="width:{{defesa}}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{#if totalAvaliacoes}}
+                        <div class="text-body-secondary small mt-2 text-end">{{totalAvaliacoes}} avaliação(ões)</div>
+                        {{else}}
+                        <div class="text-body-secondary small mt-2 text-end fst-italic">Sem avaliações</div>
+                        {{/if}}
+                    </div>
+                </div>
+            </a>
+        </div>
+        {{/each}}
+    </div>
+    {{else}}
+    <div class="text-center text-body-secondary py-5">
+        <i class="fa-solid fa-user-slash fa-2x mb-3 d-block"></i>
+        Nenhum aluno ativo encontrado.
+    </div>
+    {{/if}}
+</div>
+
+<style>
+    .atributo-card {
+        transition: transform 120ms ease, box-shadow 120ms ease;
+        cursor: pointer;
+    }
+    .atributo-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.12) !important;
+    }
+    .atributo-foto {
+        object-fit: cover;
+        border: 2px solid rgba(0,0,0,.08);
+    }
+    .overall-number {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #f5a623;
+        line-height: 1;
+    }
+    .overall-label {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .05em;
+        color: #aaa;
+        text-transform: uppercase;
+    }
+    .atributo-mini-label {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        color: #aaa;
+        text-transform: uppercase;
+        margin-bottom: 1px;
+    }
+    .atributo-mini-valor {
+        font-size: .9rem;
+        font-weight: 700;
+        color: #f5a623;
+    }
+    .badge-sm {
+        font-size: .65rem;
+    }
+</style>

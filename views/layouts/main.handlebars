@@ -10,7 +10,6 @@
 
         <link href="/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-        <link rel="stylesheet" href="https://unpkg.com/js-datepicker/dist/datepicker.min.css">
         <link rel="icon" href="/img/logotipo.ico">
         <style>
             :root {
@@ -18,34 +17,94 @@
                 --app-footer-height: 0px;
             }
 
-            /* js-datepicker (mobile-first): não pode estourar a tela nem o layout */
-            .qs-datepicker-container {
-                z-index: 2000; /* acima de navbar/modais */
-                max-width: min(22rem, calc(100vw - 1rem));
-                width: auto;
+            /* Calendário customizado no modal de seleção de data */
+            .cal-grid {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                gap: 2px;
+                text-align: center;
             }
 
-            .qs-datepicker {
-                width: 100%;
-                max-width: 100%;
+            .cal-day-header {
+                font-size: 0.72rem;
+                font-weight: 600;
+                color: var(--bs-secondary-color);
+                padding: 4px 0;
             }
 
-            .qs-datepicker .qs-controls {
-                padding: 0.4rem 0.5rem;
+            .cal-day-btn {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                border: none;
+                background: transparent;
+                font-size: 0.875rem;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: auto;
+                padding: 0;
+                transition: background-color 0.1s;
+                color: var(--bs-body-color);
             }
 
-            .qs-datepicker .qs-squares {
-                width: 100%;
+            .cal-day-btn:hover:not(.is-selected) {
+                background-color: var(--bs-secondary-bg);
             }
 
-            .qs-datepicker .qs-square {
-                padding: 0.45rem 0;
+            .cal-day-btn.is-today {
+                border: 2px solid var(--bs-primary);
+                color: var(--bs-primary);
+                font-weight: 600;
             }
 
-            @media (min-width: 576px) {
-                .qs-datepicker-container {
-                    max-width: min(24rem, calc(100vw - 2rem));
-                }
+            .cal-day-btn.is-selected {
+                background-color: var(--bs-primary);
+                color: #fff;
+                font-weight: 600;
+            }
+
+            /* Botões de ano (grade 4 colunas) */
+            .cal-year-btn {
+                min-width: 56px;
+                height: 36px;
+                border-radius: 18px;
+                border: none;
+                background: transparent;
+                font-size: 0.875rem;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: auto;
+                padding: 0 6px;
+                transition: background-color 0.1s;
+                color: var(--bs-body-color);
+            }
+
+            .cal-year-btn:hover:not(.is-selected) {
+                background-color: var(--bs-secondary-bg);
+            }
+
+            .cal-year-btn.is-today {
+                border: 2px solid var(--bs-primary);
+                color: var(--bs-primary);
+                font-weight: 600;
+            }
+
+            .cal-year-btn.is-selected {
+                background-color: var(--bs-primary);
+                color: #fff;
+                font-weight: 600;
+            }
+
+            /* Campos data gerenciados pelo modal calendário: aparência editável mesmo com readonly */
+            input[data-datepicker-bound="1"].form-control,
+            input[data-datepicker-bound="1"].form-control:focus {
+                background-color: var(--bs-body-bg) !important;
+                cursor: pointer !important;
+                color: var(--bs-body-color) !important;
             }
 
             /* Modais com static backdrop não devem “tomar” header/footer */
@@ -304,7 +363,35 @@
         </div>
         {{/if}}
 
-        <script src="https://unpkg.com/js-datepicker/dist/datepicker.min.js"></script>
+        <!-- Modal calendário global: toggle-between-modals para todos os campos data -->
+        <div class="modal fade" id="modalCalendario" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered" style="max-width:340px;">
+                <div class="modal-content">
+                    <div class="modal-header pb-2">
+                        <h5 class="modal-title" id="modalCalendarioLabel">
+                            <i class="fa-regular fa-calendar-days"></i> Selecionar data
+                        </h5>
+                        <button type="button" class="btn-close" id="btnCalendarioCancelar" aria-label="Cancelar"></button>
+                    </div>
+                    <div class="modal-body px-3 py-3">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="calBtnPrev" aria-label="Mês anterior">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <button type="button" id="calMonthYearLabel" class="btn btn-sm btn-light fw-semibold px-2" title="Clique para selecionar o ano"></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="calBtnNext" aria-label="Próximo mês">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div id="calGrid" class="cal-grid"></div>
+                    </div>
+                    <div class="modal-footer pt-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCalendarioCancelarFooter">Cancelar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script src="/js/popper.min.js" defer></script>
         <script src="/js/bootstrap.min.js" defer></script>
         <script src="/js/auto-dismiss.js" defer></script>
@@ -315,182 +402,325 @@
             });
         </script>
         <script>
-            (function initAppDatepickers() {
-                const DATEPICKER_PT_BR = {
-                    customDays: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
-                    customMonths: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
-                    overlayPlaceholder: 'Digite o ano',
-                    overlayButton: 'Ir',
-                    startDay: 0, // domingo
-                };
-
-                function pad2(n) {
-                    return String(Math.max(0, n)).padStart(2, '0');
-                }
+            (function initCalendarModal() {
+                // ── Utilitários de formato ────────────────────────────────────────────────
+                function pad2(n) { return String(Math.max(0, n)).padStart(2, '0'); }
 
                 function formatISO(d) {
-                    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
-                    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+                    if (!(d instanceof Date) || isNaN(d)) return '';
+                    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
                 }
-
-                function parseISO(value) {
-                    const v = String(value || '').trim();
-                    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                function parseISO(v) {
+                    var m = String(v || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
                     if (!m) return null;
-                    const y = Number(m[1]);
-                    const mo = Number(m[2]);
-                    const da = Number(m[3]);
+                    var y = +m[1], mo = +m[2], da = +m[3];
                     if (!y || mo < 1 || mo > 12 || da < 1 || da > 31) return null;
-                    const dt = new Date(y, mo - 1, da);
-                    if (Number.isNaN(dt.getTime())) return null;
-                    if (dt.getFullYear() !== y || (dt.getMonth() + 1) !== mo || dt.getDate() !== da) return null;
-                    return dt;
+                    var dt = new Date(y, mo - 1, da);
+                    return (!isNaN(dt) && dt.getFullYear() === y && dt.getMonth() + 1 === mo && dt.getDate() === da) ? dt : null;
                 }
-
                 function formatBR(d) {
-                    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
-                    return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+                    if (!(d instanceof Date) || isNaN(d)) return '';
+                    return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
                 }
-
-                function parseBR(value) {
-                    const v = String(value || '').trim();
-                    const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                function parseBR(v) {
+                    var m = String(v || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
                     if (!m) return null;
-                    const da = Number(m[1]);
-                    const mo = Number(m[2]);
-                    const y = Number(m[3]);
+                    var da = +m[1], mo = +m[2], y = +m[3];
                     if (!y || mo < 1 || mo > 12 || da < 1 || da > 31) return null;
-                    const dt = new Date(y, mo - 1, da);
-                    if (Number.isNaN(dt.getTime())) return null;
-                    if (dt.getFullYear() !== y || (dt.getMonth() + 1) !== mo || dt.getDate() !== da) return null;
-                    return dt;
+                    var dt = new Date(y, mo - 1, da);
+                    return (!isNaN(dt) && dt.getFullYear() === y && dt.getMonth() + 1 === mo && dt.getDate() === da) ? dt : null;
                 }
 
-                function getViewportInsets() {
-                    const styles = getComputedStyle(document.documentElement);
-                    const header = parseInt(styles.getPropertyValue('--app-header-height') || '0', 10) || 0;
-                    const footer = parseInt(styles.getPropertyValue('--app-footer-height') || '0', 10) || 0;
-                    return { top: Math.max(0, header), bottom: Math.max(0, footer) };
+                // ── Estado do calendário ──────────────────────────────────────────────────
+                var _calModalBs = null;
+                var _calState = null;       // { targetInput, parentModalEl, format }
+                var _calViewYear = 0;
+                var _calViewMonth = 0;
+                var _calSelectedDate = null;
+                var _calNavBound = false;
+                var _calView = 'month';       // 'month' | 'year'
+                var _calYearRangeStart = 0;   // primeiro ano da grade de anos
+
+                var CAL_MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                                  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+                var CAL_DAYS   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+                function calEl() { return document.getElementById('modalCalendario'); }
+
+                function calBs() {
+                    if (!_calModalBs) {
+                        var el = calEl();
+                        if (el && typeof bootstrap !== 'undefined') {
+                            _calModalBs = new bootstrap.Modal(el, { backdrop: 'static', keyboard: false });
+                        }
+                    }
+                    return _calModalBs;
                 }
 
-                function clampDatepickerContainer(container) {
-                    if (!container) return;
-                    const rect = container.getBoundingClientRect();
-                    const pad = 8;
-                    const insets = getViewportInsets();
+                // ── Renderização do calendário ────────────────────────────────────────────
+                function renderCal(year, month, selectedDate) {
+                    _calView = 'month';
+                    _calViewYear = year;
+                    _calViewMonth = month;
+                    _calSelectedDate = selectedDate || null;
 
-                    const maxLeft = Math.max(pad, window.innerWidth - pad - rect.width);
-                    const minLeft = pad;
-                    const maxTop = Math.max(pad + insets.top, window.innerHeight - pad - insets.bottom - rect.height);
-                    const minTop = pad + insets.top;
+                    var grid = document.getElementById('calGrid');
+                    if (!grid) return;
+                    grid.style.gridTemplateColumns = '';
+                    grid.innerHTML = '';
 
-                    const desiredLeft = Math.min(Math.max(rect.left, minLeft), maxLeft);
-                    const desiredTop = Math.min(Math.max(rect.top, minTop), maxTop);
+                    var lbl = document.getElementById('calMonthYearLabel');
+                    if (lbl) lbl.textContent = CAL_MONTHS[month] + ' ' + year;
 
-                    const cs = getComputedStyle(container);
-                    const pos = cs.position;
-                    const dx = desiredLeft - rect.left;
-                    const dy = desiredTop - rect.top;
-                    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+                    CAL_DAYS.forEach(function(d) {
+                        var cell = document.createElement('div');
+                        cell.className = 'cal-day-header';
+                        cell.textContent = d;
+                        grid.appendChild(cell);
+                    });
 
-                    if (pos === 'fixed') {
-                        container.style.left = `${(rect.left + dx)}px`;
-                        container.style.top = `${(rect.top + dy)}px`;
-                    } else {
-                        container.style.left = `${(rect.left + dx + window.scrollX)}px`;
-                        container.style.top = `${(rect.top + dy + window.scrollY)}px`;
+                    var firstDay    = new Date(year, month, 1).getDay();
+                    var daysInMonth = new Date(year, month + 1, 0).getDate();
+                    var today       = new Date();
+                    var todayY = today.getFullYear(), todayM = today.getMonth(), todayD = today.getDate();
+                    var selY = selectedDate ? selectedDate.getFullYear() : null;
+                    var selM = selectedDate ? selectedDate.getMonth()    : null;
+                    var selD = selectedDate ? selectedDate.getDate()     : null;
+
+                    for (var i = 0; i < firstDay; i++) {
+                        grid.appendChild(document.createElement('div'));
                     }
 
-                    container.style.maxWidth = `min(24rem, calc(100vw - ${pad * 2}px))`;
-                    container.style.maxHeight = `calc(100vh - ${insets.top + insets.bottom + pad * 2}px)`;
+                    for (var d = 1; d <= daysInMonth; d++) {
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.textContent = d;
+                        btn.className = 'cal-day-btn';
+
+                        var isToday = (year === todayY && month === todayM && d === todayD);
+                        var isSel   = (selY !== null && year === selY && month === selM && d === selD);
+
+                        if (isSel)        btn.classList.add('is-selected');
+                        else if (isToday) btn.classList.add('is-today');
+
+                        (function(day) {
+                            btn.addEventListener('click', function() {
+                                closeCalModal(new Date(year, month, day));
+                            });
+                        })(d);
+
+                        grid.appendChild(btn);
+                    }
                 }
 
-                function clampLatestDatepickerSoon() {
-                    window.setTimeout(() => {
-                        const containers = Array.from(document.querySelectorAll('.qs-datepicker-container'));
-                        const latest = containers[containers.length - 1];
-                        clampDatepickerContainer(latest);
-                    }, 0);
+                function renderYearView() {
+                    _calView = 'year';
+
+                    var grid = document.getElementById('calGrid');
+                    if (!grid) return;
+                    grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+                    grid.innerHTML = '';
+
+                    var lbl = document.getElementById('calMonthYearLabel');
+                    if (lbl) lbl.textContent = _calYearRangeStart + ' – ' + (_calYearRangeStart + 11);
+
+                    var selY        = _calSelectedDate ? _calSelectedDate.getFullYear() : null;
+                    var currentYear = new Date().getFullYear();
+
+                    for (var i = 0; i < 12; i++) {
+                        var y = _calYearRangeStart + i;
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.textContent = y;
+                        btn.className = 'cal-year-btn';
+
+                        if (y === selY)        btn.classList.add('is-selected');
+                        else if (y === currentYear) btn.classList.add('is-today');
+
+                        (function(theYear) {
+                            btn.addEventListener('click', function() {
+                                renderCal(theYear, _calViewMonth, _calSelectedDate);
+                            });
+                        })(y);
+
+                        grid.appendChild(btn);
+                    }
                 }
 
-                function attachDatepickerToInput(inputEl, mode) {
+                function bindCalNav() {
+                    if (_calNavBound) return;
+                    _calNavBound = true;
+
+                    var prev = document.getElementById('calBtnPrev');
+                    var next = document.getElementById('calBtnNext');
+                    var lbl  = document.getElementById('calMonthYearLabel');
+
+                    if (prev) prev.addEventListener('click', function() {
+                        if (_calView === 'year') {
+                            _calYearRangeStart -= 12;
+                            renderYearView();
+                        } else {
+                            var m = _calViewMonth - 1, y = _calViewYear;
+                            if (m < 0) { m = 11; y--; }
+                            renderCal(y, m, _calSelectedDate);
+                        }
+                    });
+
+                    if (next) next.addEventListener('click', function() {
+                        if (_calView === 'year') {
+                            _calYearRangeStart += 12;
+                            renderYearView();
+                        } else {
+                            var m = _calViewMonth + 1, y = _calViewYear;
+                            if (m > 11) { m = 0; y++; }
+                            renderCal(y, m, _calSelectedDate);
+                        }
+                    });
+
+                    if (lbl) lbl.addEventListener('click', function() {
+                        if (_calView === 'month') {
+                            _calYearRangeStart = _calViewYear - 5;
+                            renderYearView();
+                        } else {
+                            renderCal(_calViewYear, _calViewMonth, _calSelectedDate);
+                        }
+                    });
+
+                    ['btnCalendarioCancelar', 'btnCalendarioCancelarFooter'].forEach(function(id) {
+                        var btn = document.getElementById(id);
+                        if (btn) btn.addEventListener('click', function() { closeCalModal(null); });
+                    });
+                }
+
+                // ── Abrir / fechar o modal calendário ────────────────────────────────────
+                function openCalModal(targetInput, parentModalEl, format, labelText) {
+                    bindCalNav();
+
+                    _calState = { targetInput: targetInput, parentModalEl: parentModalEl, format: format };
+
+                    var titleEl = document.getElementById('modalCalendarioLabel');
+                    if (titleEl) {
+                        titleEl.innerHTML = '<i class="fa-regular fa-calendar-days"></i> ' + (labelText || 'Selecionar data');
+                    }
+
+                    function show() {
+                        var cur = format === 'br' ? parseBR(targetInput.value) : parseISO(targetInput.value);
+                        var ref = cur || new Date();
+                        renderCal(ref.getFullYear(), ref.getMonth(), cur || null);
+                        var bs = calBs();
+                        if (bs) bs.show();
+                    }
+
+                    if (parentModalEl) {
+                        var parentBs = typeof bootstrap !== 'undefined'
+                            ? bootstrap.Modal.getInstance(parentModalEl)
+                            : null;
+                        if (parentBs) {
+                            parentModalEl.dataset.calReturning = '1';
+                            parentModalEl.addEventListener('hidden.bs.modal', function h() {
+                                parentModalEl.removeEventListener('hidden.bs.modal', h);
+                                show();
+                            });
+                            parentBs.hide();
+                            return;
+                        }
+                    }
+                    show();
+                }
+
+                function closeCalModal(selectedDate) {
+                    var state = _calState;
+                    _calState = null;
+
+                    if (state && selectedDate) {
+                        var fmt = state.format === 'br' ? formatBR : formatISO;
+                        state.targetInput.value = fmt(selectedDate);
+                        state.targetInput.dispatchEvent(new Event('input',  { bubbles: true }));
+                        state.targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+
+                    var modal = calBs();
+                    var el    = calEl();
+
+                    if (modal) {
+                        if (state && state.parentModalEl) {
+                            var parentEl = state.parentModalEl;
+                            el.addEventListener('hidden.bs.modal', function h() {
+                                el.removeEventListener('hidden.bs.modal', h);
+                                bootstrap.Modal.getOrCreateInstance(parentEl).show();
+                                parentEl.addEventListener('shown.bs.modal', function h2() {
+                                    parentEl.removeEventListener('shown.bs.modal', h2);
+                                    delete parentEl.dataset.calReturning;
+                                });
+                            });
+                        }
+                        modal.hide();
+                    }
+                }
+
+                // Valida campos obrigatórios (readonly não participa da validação nativa do browser)
+                document.addEventListener('submit', function(e) {
+                    var inputs = e.target.querySelectorAll('[data-datepicker-bound="1"]');
+                    for (var i = 0; i < inputs.length; i++) {
+                        if (inputs[i].required && !inputs[i].value.trim()) {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            inputs[i].dispatchEvent(new Event('click', { bubbles: true }));
+                            return;
+                        }
+                    }
+                }, true);
+
+                // ── Binding dos inputs de data ────────────────────────────────────────────
+                function getInputLabel(inputEl) {
+                    var wrap = inputEl.closest('.mb-3, .col-md-6, .col-12, .col-lg-6');
+                    var lbl  = wrap ? wrap.querySelector('label') : null;
+                    return lbl ? lbl.textContent.trim() : 'Selecionar data';
+                }
+
+                function bindDateInput(inputEl, mode) {
                     if (!inputEl || inputEl.dataset.datepickerBound === '1') return;
                     if (inputEl.readOnly || inputEl.disabled) return;
 
                     inputEl.dataset.datepickerBound = '1';
+                    inputEl.readOnly = true;
 
-                    const isBR = mode === 'br';
-                    const parser = isBR ? parseBR : parseISO;
-                    const formatter = isBR
-                        ? (input, date) => { input.value = formatBR(date); }
-                        : (input, date) => { input.value = formatISO(date); };
+                    var parentModal = inputEl.closest('.modal');
+                    var label = getInputLabel(inputEl);
 
-                    datepicker(inputEl, {
-                        ...DATEPICKER_PT_BR,
-                        formatter,
-                        parser: (str) => parser(str),
-                        onShow: clampLatestDatepickerSoon,
-                        onSelect: clampLatestDatepickerSoon,
-                        position: 'bl',
-                    });
-
-                    inputEl.addEventListener('focus', clampLatestDatepickerSoon);
-                    inputEl.addEventListener('click', clampLatestDatepickerSoon);
+                    function open() { openCalModal(inputEl, parentModal, mode, label); }
+                    inputEl.addEventListener('click', open);
+                    inputEl.addEventListener('focus', function() { inputEl.blur(); open(); });
                 }
 
-                let globalListenersAttached = false;
-
-                /** Liga o js-datepicker aos inputs; idempotente (dataset.datepickerBound). */
-                function bindAppDatepickerTargets() {
-                    if (typeof datepicker !== 'function') return;
-
-                    // ISO (aaaa-mm-dd): inputs que antes eram type="date"
-                    document.querySelectorAll('#birth_date, #rangeStart, #rangeEnd').forEach((el) => {
-                        attachDatepickerToInput(el, 'iso');
+                function bindAll() {
+                    document.querySelectorAll('#birth_date, #rangeStart, #rangeEnd').forEach(function(el) {
+                        bindDateInput(el, 'iso');
                     });
-
-                    // BR (dd/mm/aaaa): metas
-                    document.querySelectorAll('.meta-date-input').forEach((el) => {
-                        attachDatepickerToInput(el, 'br');
+                    document.querySelectorAll('.meta-date-input').forEach(function(el) {
+                        bindDateInput(el, 'br');
                     });
-
-                    if (!globalListenersAttached) {
-                        globalListenersAttached = true;
-                        window.addEventListener('resize', clampLatestDatepickerSoon);
-                        window.addEventListener('scroll', clampLatestDatepickerSoon, true);
-                    }
                 }
 
-                /**
-                 * Agenda a ligação do datepicker por último: após o DOM completo, após os handlers
-                 * síncronos do DOMContentLoaded da página, e após um frame de layout/pintura.
-                 */
-                function scheduleBindAppDatepickers() {
-                    setTimeout(() => {
-                        requestAnimationFrame(() => {
-                            requestAnimationFrame(bindAppDatepickerTargets);
-                        });
+                function schedule() {
+                    setTimeout(function() {
+                        requestAnimationFrame(function() { requestAnimationFrame(bindAll); });
                     }, 0);
                 }
 
                 if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', scheduleBindAppDatepickers);
+                    document.addEventListener('DOMContentLoaded', schedule);
                 } else {
-                    scheduleBindAppDatepickers();
+                    schedule();
                 }
 
-                window.addEventListener('load', () => {
-                    requestAnimationFrame(bindAppDatepickerTargets);
-                });
+                window.addEventListener('load', function() { requestAnimationFrame(bindAll); });
 
                 if (typeof MutationObserver !== 'undefined') {
-                    let moTimer = null;
-                    const mo = new MutationObserver(() => {
-                        if (moTimer) clearTimeout(moTimer);
-                        moTimer = setTimeout(() => {
-                            moTimer = null;
-                            bindAppDatepickerTargets();
-                        }, 50);
+                    var moTimer = null;
+                    var mo = new MutationObserver(function() {
+                        clearTimeout(moTimer);
+                        moTimer = setTimeout(bindAll, 50);
                     });
                     mo.observe(document.documentElement, { childList: true, subtree: true });
                 }

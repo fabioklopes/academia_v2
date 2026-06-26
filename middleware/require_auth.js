@@ -6,6 +6,7 @@
 /** Lista de caminhos que qualquer pessoa pode acessar sem estar logada. */
 function isPublicRoute(pathname) {
     const publicRoutes = new Set([
+        '/login',
         '/auth/login',
         '/auth/verify',
         '/auth/forgot-password',

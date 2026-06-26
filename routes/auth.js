@@ -28,6 +28,16 @@ const {
 function registerAuthRoutes(app, deps) {
     const { buildBirthdayLoginModalData } = deps;
 
+    // Compatibilidade com redirecionamentos externos (ex.: nginx) que usam /login?next=
+    app.get('/login', function (req, res) {
+        if (req.session.usuario) {
+            return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
+        }
+        const next = req.query.next || req.query.redirect || '';
+        const redirect = typeof next === 'string' && next.startsWith('/') ? next : '/dashboard';
+        return res.redirect(`/auth/login?redirect=${encodeURIComponent(redirect)}`);
+    });
+
     app.get('/auth/login', function (req, res) {
         if (req.session.usuario) {
             return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
@@ -120,12 +130,7 @@ function registerAuthRoutes(app, deps) {
             req.session.birthdayLoginModal = buildBirthdayLoginModalData(usuario);
             req.session.motivationalMessage = getRandomMotivationalMessage();
 
-            const redirectNeedsNormalization = new Set(['/', '/aluno', '/dashboardaluno']);
-            const redirect = redirectNeedsNormalization.has(requestedRedirect)
-                ? getDefaultRedirectByRole(usuario.role)
-                : requestedRedirect;
-
-            return res.redirect(redirect);
+            return res.redirect(getDefaultRedirectByRole(usuario.role));
         }).catch(function (err) {
             const erro = encodeURIComponent('Erro ao verificar credenciais: ' + err.message);
             res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);

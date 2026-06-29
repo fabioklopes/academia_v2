@@ -14,10 +14,10 @@ const beltMap = {
 function makeEntry(overrides = {}) {
     return {
         user_code: 'AAA11',
+        full_name: 'Nome Padrão',
         total: 0,
         actual_belt: 'white',
         actual_degree: '0',
-        createdAt: '2024-01-01T00:00:00.000Z',
         ...overrides
     };
 }
@@ -42,28 +42,11 @@ describe('compareRankingEntries', () => {
         expect(compareRankingEntries(a, b, beltMap)).toBeLessThan(0);
     });
 
-    test('desempata por data de cadastro mais antiga', () => {
-        const a = makeEntry({
-            user_code: 'AAA11',
-            total: 8,
-            actual_belt: 'blue',
-            actual_degree: '2',
-            createdAt: '2023-06-01T00:00:00.000Z'
-        });
-        const b = makeEntry({
-            user_code: 'BBB22',
-            total: 8,
-            actual_belt: 'blue',
-            actual_degree: '2',
-            createdAt: '2024-06-01T00:00:00.000Z'
-        });
+    test('desempata por ordem alfabética do nome', () => {
+        const a = makeEntry({ total: 8, actual_belt: 'blue', actual_degree: '2', full_name: 'Ana Silva' });
+        const b = makeEntry({ user_code: 'BBB22', total: 8, actual_belt: 'blue', actual_degree: '2', full_name: 'Bruno Costa' });
         expect(compareRankingEntries(a, b, beltMap)).toBeLessThan(0);
-    });
-
-    test('usa user_code como fallback determinístico', () => {
-        const a = makeEntry({ user_code: 'AAA11', total: 3, createdAt: '2024-01-01T00:00:00.000Z' });
-        const b = makeEntry({ user_code: 'BBB22', total: 3, createdAt: '2024-01-01T00:00:00.000Z' });
-        expect(compareRankingEntries(a, b, beltMap)).toBeLessThan(0);
+        expect(compareRankingEntries(b, a, beltMap)).toBeGreaterThan(0);
     });
 });
 

@@ -130,7 +130,7 @@ function registerAuthRoutes(app, deps) {
             req.session.birthdayLoginModal = buildBirthdayLoginModalData(usuario);
             req.session.motivationalMessage = getRandomMotivationalMessage();
 
-            return res.redirect(getDefaultRedirectByRole(usuario.role));
+            return res.redirect(requestedRedirect);
         }).catch(function (err) {
             const erro = encodeURIComponent('Erro ao verificar credenciais: ' + err.message);
             res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
@@ -140,8 +140,7 @@ function registerAuthRoutes(app, deps) {
     app.post('/auth/logout', function (req, res) {
         req.session.destroy(function () {
             res.clearCookie('oss.sid');
-            const erro = encodeURIComponent('Sessão encerrada. Faça login novamente.');
-            res.redirect(`/auth/login?erro=${erro}`);
+            res.redirect('/');
         });
     });
 

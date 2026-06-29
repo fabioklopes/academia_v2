@@ -5302,8 +5302,8 @@ if (require.main === module) {
             app.listen(PORT, function () {
                 console.clear();
                 console.log('');
-                console.log('\n\nServidor funcionando...');
-                console.log(`Acesse http://localhost:${PORT} para ver o app.`);
+                console.log('🚀 Servidor funcionando...');
+                console.log(`✨ Acesse http://localhost:${PORT} para ver o app.`);
                 if (needsSetup) {
                     console.log(`Configuração inicial pendente: http://localhost:${PORT}/ignition`);
                 }

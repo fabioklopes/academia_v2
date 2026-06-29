@@ -26,6 +26,8 @@
         border-radius: 50%;
         object-fit: cover;
         border: 1px solid var(--bs-border-color-translucent);
+        cursor: zoom-in;
+        flex-shrink: 0;
     }
 
     .aluno-link {
@@ -661,13 +663,19 @@
             document.body.style.overflow = '';
         }
 
-        function openAlunoAvatarLightbox() {
-            const photo = document.getElementById('modalAlunoPhoto');
-            if (!avatarLightbox || !avatarLightboxImg || !photo || !photo.getAttribute('src')) {
+        function openAlunoAvatarLightbox(srcOverride) {
+            if (!avatarLightbox || !avatarLightboxImg) {
                 return;
             }
-            avatarLightboxImg.src = photo.currentSrc || photo.src;
-            avatarLightboxImg.alt = photo.alt || 'Foto do aluno';
+            if (srcOverride) {
+                avatarLightboxImg.src = srcOverride;
+                avatarLightboxImg.alt = 'Foto do aluno';
+            } else {
+                const photo = document.getElementById('modalAlunoPhoto');
+                if (!photo || !photo.getAttribute('src')) return;
+                avatarLightboxImg.src = photo.currentSrc || photo.src;
+                avatarLightboxImg.alt = photo.alt || 'Foto do aluno';
+            }
             avatarLightbox.classList.add('is-open');
             avatarLightbox.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
@@ -679,6 +687,14 @@
                 openAlunoAvatarLightbox();
             });
         }
+
+        document.querySelectorAll('.aluno-avatar').forEach(function(img) {
+            img.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const src = img.getAttribute('src');
+                if (src) openAlunoAvatarLightbox(src);
+            });
+        });
 
         if (avatarLightbox) {
             avatarLightbox.addEventListener('click', function(e) {

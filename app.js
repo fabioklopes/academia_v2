@@ -780,26 +780,15 @@ function formatTimestampForFile(dateValue) {
 // FOTOS DE USUÁRIO — upload, redimensionamento e limpeza
 // ============================================================================
 
-/** Redimensiona foto para 200x200 px e comprime até caber em 1 MB. */
+/** Redimensiona foto para 500x500 px com qualidade fixa de 80%. Resultado máximo: 2 MB. */
 async function optimizeImageTo1MB(inputPath, outputPath) {
-    const maxBytes = 1048576; // 1MB
-    let quality = 90;
-    let buffer;
-
-    while (quality >= 30) {
-        buffer = await sharp(inputPath)
-            .resize(200, 200, {
-                fit: 'cover',
-                position: 'center'
-            })
-            .jpeg({ quality, progressive: true })
-            .toBuffer();
-
-        if (buffer.length <= maxBytes) {
-            break;
-        }
-        quality -= 5;
-    }
+    const buffer = await sharp(inputPath)
+        .resize(500, 500, {
+            fit: 'cover',
+            position: 'center'
+        })
+        .jpeg({ quality: 80, progressive: true })
+        .toBuffer();
 
     await fs.promises.writeFile(outputPath, buffer);
     return buffer.length;

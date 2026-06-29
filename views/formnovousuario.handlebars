@@ -235,8 +235,7 @@
                 suas presenças.
             </label>
             <input type="file" class="form-control" id="photo-input" name="photo" accept="image/*" placeholder="" required>
-            <small class="form-text text-muted small">Máximo 1MB. Enquadre seu rosto em uma área de 200x200
-                pixels.</small>
+            <small class="form-text text-muted small">Enquadre seu rosto. A imagem será ajustada automaticamente para 500×500 px.</small>
         </div>
 
         {{#if isEditMode}}
@@ -271,7 +270,7 @@
         <!-- Visualização da imagem recortada -->
         <div id="preview-container" class="mb-3" style="display: none;">
             <label class="form-label">Prévia da sua foto:</label>
-            <div style="width: 200px; height: 200px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <div style="width: 150px; height: 150px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
                 <img id="preview-image" style="width: 100%; height: 100%; object-fit: cover;" />
             </div>
             <input type="hidden" id="photo-data" />
@@ -443,8 +442,8 @@
             if (!cropper) return;
 
             const canvas = cropper.getCroppedCanvas({
-                maxWidth: 200,
-                maxHeight: 200,
+                maxWidth: 500,
+                maxHeight: 500,
                 fillColor: '#fff',
                 imageSmoothingEnabled: true,
                 imageSmoothingQuality: 'high',
@@ -464,7 +463,7 @@
 
                 cropContainer.style.display = 'none';
                 previewContainer.style.display = 'block';
-            }, 'image/jpeg', 0.95);
+            }, 'image/jpeg', 0.80);
         });
 
         cropCancelBtn.addEventListener('click', function () {

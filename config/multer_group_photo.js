@@ -1,13 +1,14 @@
 /**
- * Configuração do Multer para upload temporário de fotos de usuário.
- * Arquivos vão para uploads/users/ com prefixo temp_ até serem processados.
+ * Configuração do Multer para upload de fotos de turma (reconhecimento facial).
+ * Diferente das fotos de avatar, estas vão para private_uploads/ — pasta
+ * FORA do express.static, nunca acessível por URL pública direta.
  */
 
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
-const uploadsDir = path.join(__dirname, '..', 'uploads', 'users');
+const uploadsDir = path.join(__dirname, '..', 'private_uploads', 'presenca_fotos');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }

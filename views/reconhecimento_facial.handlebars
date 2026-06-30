@@ -1,0 +1,98 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}}" role="alert">
+    {{mensagem}}
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Reconhecimento facial — foto de turma</h1>
+</div>
+
+{{#unless facialRecognitionEnabled}}
+<div class="alert alert-warning">
+    <i class="fa-solid fa-triangle-exclamation"></i> O serviço de reconhecimento facial (CompreFace) ainda não está
+    habilitado/configurado neste ambiente. Você ainda pode enviar a foto para teste, mas a detecção não vai funcionar
+    até a configuração ser concluída.
+</div>
+{{/unless}}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form action="/reconhecimento-facial/upload" method="POST" enctype="multipart/form-data" class="row g-3" id="formFotoTurma">
+            <div class="col-md-6">
+                <label class="form-label" for="rf_class_code">Turma</label>
+                <select class="form-select" id="rf_class_code" name="class_code" required>
+                    <option value="">Selecione...</option>
+                    {{#each turmas}}
+                        <option value="{{class_code}}">{{class_name}}</option>
+                    {{/each}}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="rf_reference_date">Data da aula</label>
+                <input type="text" class="form-control meta-date-input" id="rf_reference_date" name="reference_date" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" required>
+            </div>
+
+            <div class="col-12" id="rf_class_type_wrapper" style="display:none;">
+                <label class="form-label d-block">Tipo de aula (terça-feira)</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="class_type" id="rf_tipo_gi" value="Gi">
+                    <label class="form-check-label" for="rf_tipo_gi">1ª aula — Com kimono (Gi)</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="class_type" id="rf_tipo_nogi" value="No-Gi">
+                    <label class="form-check-label" for="rf_tipo_nogi">2ª aula — Sem kimono (No-Gi)</label>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label" for="rf_photo">Foto da turma (grupo)</label>
+                <input type="file" class="form-control" id="rf_photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
+            </div>
+
+            <div class="col-12 text-center">
+                <button type="submit" class="btn btn-primary" id="rf_submit_btn">
+                    <i class="fa-solid fa-upload"></i> Enviar e identificar rostos
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const dateInput = document.getElementById('rf_reference_date');
+    const tipoWrapper = document.getElementById('rf_class_type_wrapper');
+    const radios = tipoWrapper ? tipoWrapper.querySelectorAll('input[name="class_type"]') : [];
+    const form = document.getElementById('formFotoTurma');
+    const submitBtn = document.getElementById('rf_submit_btn');
+
+    function isTuesdayBr(value) {
+        const m = String(value || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!m) return false;
+        const d = new Date(Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10), 12, 0, 0));
+        return d.getUTCDay() === 2;
+    }
+
+    function refreshClassTypeVisibility() {
+        const showIt = isTuesdayBr(dateInput.value);
+        tipoWrapper.style.display = showIt ? '' : 'none';
+        radios.forEach(function (r) { r.required = showIt; });
+        if (!showIt) {
+            radios.forEach(function (r) { r.checked = false; });
+        }
+    }
+
+    if (dateInput && tipoWrapper) {
+        dateInput.addEventListener('change', refreshClassTypeVisibility);
+        refreshClassTypeVisibility();
+    }
+
+    form?.addEventListener('submit', function () {
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processando...';
+        }
+    });
+})();
+</script>

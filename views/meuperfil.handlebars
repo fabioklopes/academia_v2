@@ -69,6 +69,43 @@
                 </div>
 
                 <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingFoto">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFoto" aria-expanded="false" aria-controls="collapseFoto">
+                            <span class="badge text-bg-primary me-2"><i class="fa-solid fa-camera-retro" aria-hidden="true"></i></span>
+                            <b>Foto do Perfil</b>
+                        </button>
+                    </h2>
+                    <div id="collapseFoto" class="accordion-collapse collapse" data-bs-parent="#accordionPerfil" aria-labelledby="headingFoto">
+                        <div class="accordion-body text-center">
+                            <img src="{{#if usuario.photo_pending_path}}{{usuario.photo_pending_path}}{{else}}{{usuario.photo}}{{/if}}" alt="Foto atual" class="rounded-circle mb-3" style="width:140px;height:140px;object-fit:cover;">
+
+                            {{#if (eq usuario.photo_status 'PENDING')}}
+                                <div class="alert alert-info">Sua foto está aguardando aprovação do professor.</div>
+                            {{/if}}
+                            {{#if (eq usuario.photo_status 'REJECTED')}}
+                                <div class="alert alert-danger">
+                                    Sua última foto foi recusada: {{usuario.photo_rejected_reason}}<br>
+                                    Envie uma nova foto abaixo.
+                                </div>
+                            {{/if}}
+                            {{#if (eq usuario.photo_status 'APPROVED')}}
+                                <div class="alert alert-success">Sua foto está aprovada.</div>
+                            {{/if}}
+
+                            <form id="formFotoPerfil" class="row g-3 justify-content-center" enctype="multipart/form-data">
+                                <div class="col-12 col-md-8">
+                                    <label class="form-label" for="mp_foto_input">Nova foto (rosto, fundo branco, alta resolução)</label>
+                                    <input type="file" class="form-control" id="mp_foto_input" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-outline-primary">Enviar foto</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
                     <h2 class="accordion-header" id="headingMedidas">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMedidas" aria-expanded="false" aria-controls="collapseMedidas">
                             <span class="badge text-bg-primary me-2"><i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i></span>
@@ -321,6 +358,25 @@
                 return;
             }
             const data = await postJson('/meuperfil/dados-pessoais', body);
+            recarregarMeuPerfilAposSalvar(data);
+        } catch (err) {
+            showPageAlert('danger', err.message);
+        }
+    });
+
+    document.getElementById('formFotoPerfil')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+            const fd = new FormData(this);
+            const res = await fetch('/meuperfil/foto', {
+                method: 'POST',
+                body: fd,
+                headers: { Accept: 'application/json' }
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok || !data.ok) {
+                throw new Error(data.mensagem || data.message || 'Falha ao enviar a foto.');
+            }
             recarregarMeuPerfilAposSalvar(data);
         } catch (err) {
             showPageAlert('danger', err.message);

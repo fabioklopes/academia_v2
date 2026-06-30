@@ -149,6 +149,35 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     email_change_expires: {
         type: db.Sequelize.DATE,
         allowNull: true
+    },
+    /** Estado da foto de avatar self-service (módulo de reconhecimento facial) */
+    photo_status: {
+        type: db.Sequelize.ENUM('NONE', 'PENDING', 'APPROVED', 'REJECTED'),
+        allowNull: false,
+        defaultValue: 'NONE',
+        validate: {
+            isIn: [['NONE', 'PENDING', 'APPROVED', 'REJECTED']]
+        }
+    },
+    photo_pending_path: {
+        type: db.Sequelize.STRING(255),
+        allowNull: true
+    },
+    photo_rejected_reason: {
+        type: db.Sequelize.STRING(255),
+        allowNull: true
+    },
+    photo_reviewed_by: {
+        type: db.Sequelize.STRING(5),
+        allowNull: true
+    },
+    photo_reviewed_at: {
+        type: db.Sequelize.DATE,
+        allowNull: true
+    },
+    compreface_subject_id: {
+        type: db.Sequelize.STRING(64),
+        allowNull: true
     }
 });
 

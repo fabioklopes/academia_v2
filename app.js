@@ -93,7 +93,8 @@ const {
     formatLastNameWithConnectives,
     formatPhoneDigitsToBr,
     roleLabelPtBr,
-    userStatusLabelPtBr
+    userStatusLabelPtBr,
+    civilDateWeekdaySun0FromYmd
 } = require('./lib/pure_helpers');
 const { createActivityLogMiddleware } = require('./middleware/activity_log');
 const portalLocalsMiddleware = require('./middleware/portal_locals');
@@ -113,6 +114,7 @@ const { buildFrequenciaRankingPage } = require('./services/ranking_frequencia');
 const { getPasswordResetTransportConfig } = require('./services/mail_transport');
 const { buildEmailChangeConfirmLink } = require('./services/public_app_links');
 const { registerAuthRoutes } = require('./routes/auth');
+const { registerFacialRecognitionRoutes } = require('./routes/facial_recognition');
 const {
     createIgnitionMiddleware,
     registerIgnitionRoutes,
@@ -769,30 +771,11 @@ function buildBirthdayLoginModalData(usuario, todayDate = new Date()) {
     };
 }
 
-function formatTimestampForFile(dateValue) {
-    const date = new Date(dateValue);
-    const pad = (n) => String(n).padStart(2, '0');
-
-    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-}
-
 // ============================================================================
 // FOTOS DE USUÁRIO — upload, redimensionamento e limpeza
 // ============================================================================
 
-/** Redimensiona foto para 500x500 px com qualidade fixa de 80%. Resultado máximo: 2 MB. */
-async function optimizeImageTo1MB(inputPath, outputPath) {
-    const buffer = await sharp(inputPath)
-        .resize(500, 500, {
-            fit: 'cover',
-            position: 'center'
-        })
-        .jpeg({ quality: 80, progressive: true })
-        .toBuffer();
-
-    await fs.promises.writeFile(outputPath, buffer);
-    return buffer.length;
-}
+const { formatTimestampForFile, optimizeImageTo1MB } = require('./lib/avatar_image');
 
 async function removeExistingUserImages(userId) {
     const idPrefix = `${userId}_`;
@@ -3612,108 +3595,14 @@ app.get('/aluno/:id/meta-atual', async (req, res) => {
 
 // FUNÇÕES DE PRESENÇAS
 
-/** Calendário das aulas / contagem no fuso de Brasília (sem horário de verão). */
-const PRESENCA_BR_UTC_OFFSET_MIN = -180;
-
-function presencaDatePartsFromYmd(dateStr) {
-    const p = String(dateStr || '')
-        .trim()
-        .split('-')
-        .map((x) => parseInt(x, 10));
-    if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) {
-        return null;
-    }
-    return { y: p[0], mo: p[1], d: p[2] };
-}
-
-/** Intervalo UTC do dia civil YYYY-MM-DD (armazenamento e deduplicação). */
-function presencaUtcRangeForYmd(dateStr) {
-    const parts = presencaDatePartsFromYmd(dateStr);
-    if (!parts) {
-        return null;
-    }
-    const { y, mo, d } = parts;
-    return {
-        start: new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0)),
-        end: new Date(Date.UTC(y, mo - 1, d, 23, 59, 59, 999)),
-        noon: new Date(Date.UTC(y, mo - 1, d, 12, 0, 0, 0))
-    };
-}
-
-/** Dia civil Y-M-D a partir do instante gravado (UTC) — meio-dia UTC evita mudar o dia civil. */
-function presencaCivilYmdFromDbDate(requestDate) {
-    const dt = requestDate instanceof Date ? requestDate : new Date(requestDate);
-    if (Number.isNaN(dt.getTime())) {
-        return null;
-    }
-    const y = dt.getUTCFullYear();
-    const m = dt.getUTCMonth() + 1;
-    const d = dt.getUTCDate();
-    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-
-/** Dia da semana (0=dom..2=ter) para uma data civil YYYY-MM-DD (Gregoriano, independente de fuso). */
-function civilDateWeekdaySun0FromYmd(ymd) {
-    const parts = presencaDatePartsFromYmd(ymd);
-    if (!parts) {
-        return null;
-    }
-    const { y, mo, d } = parts;
-    return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0, 0)).getUTCDay();
-}
-
-/** Y-M-D civil no calendário de Brasília (terça-feira = grade da academia). */
-function presencaCivilYmdBrasil(requestDate) {
-    const m = moment(requestDate);
-    if (!m.isValid()) {
-        return null;
-    }
-    return m.utcOffset(PRESENCA_BR_UTC_OFFSET_MIN).format('YYYY-MM-DD');
-}
-
-function presencaMatchesSolicitacaoDay(requestDate, dateStr) {
-    const br = presencaCivilYmdBrasil(requestDate);
-    const utc = presencaCivilYmdFromDbDate(requestDate);
-    return dateStr === br || dateStr === utc;
-}
-
-function presencaDuplicateQueryRange(dateStr) {
-    const parts = presencaDatePartsFromYmd(dateStr);
-    if (!parts) {
-        return null;
-    }
-    const { y, mo, d } = parts;
-    const center = moment.utc([y, mo - 1, d, 12, 0, 0]);
-    return {
-        start: center.clone().subtract(1, 'day').startOf('day').toDate(),
-        end: center.clone().add(1, 'day').endOf('day').toDate()
-    };
-}
-
-/**
- * Peso da presença aprovada por solicitação:
- * - Terça-feira: Integral = 2; Gi ou No-Gi = 1 cada.
- * - Demais dias: 1 por solicitação (Integral ou outro).
- */
-function presencaPesoPorSolicitacao(requestDate, classType) {
-    const ct = String(classType || '').trim();
-    const ymd = presencaCivilYmdBrasil(requestDate);
-    if (!ymd) {
-        return 1;
-    }
-    const dow = civilDateWeekdaySun0FromYmd(ymd);
-    if (dow === null) {
-        return 1;
-    }
-    const isTuesday = dow === 2;
-    if (isTuesday) {
-        if (ct === 'Integral') {
-            return 2;
-        }
-        return 1;
-    }
-    return 1;
-}
+const {
+    PRESENCA_BR_UTC_OFFSET_MIN,
+    presencaUtcRangeForYmd,
+    presencaCivilYmdBrasil,
+    presencaMatchesSolicitacaoDay,
+    presencaDuplicateQueryRange,
+    presencaPesoPorSolicitacao
+} = require('./lib/presenca_dates');
 
 function normalizeDateOnlyToStart(dateOnlyIso) {
     // dateOnlyIso: YYYY-MM-DD
@@ -5277,6 +5166,7 @@ app.post('/mensagens/mestre/:id/naoLida', async (req, res) => {
 
 
 registerAuthRoutes(app, { buildBirthdayLoginModalData });
+registerFacialRecognitionRoutes(app, { requireMeuPerfilSession, getEffectiveProfileUserId });
 
 app.use(createNotFoundMiddleware({ isProduction }));
 app.use(createErrorMiddleware({ isProduction }));

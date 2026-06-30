@@ -1,0 +1,180 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Avaliar fotos de perfil</h1>
+</div>
+
+<style>
+    .avfotos-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid var(--bs-border-color-translucent);
+    }
+</style>
+
+<div id="avFotosAlert" class="alert d-none" role="alert"></div>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Usuário</th>
+            <th class="text-end">Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#if pendentes.length}}
+            {{#each pendentes}}
+            <tr data-user-code="{{user_code}}" data-nome="{{full_name}}">
+                <td data-label="Usuário">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="{{photo_pending_path}}" alt="Foto pendente de {{full_name}}" class="avfotos-avatar">
+                        <span>{{full_name}}</span>
+                    </div>
+                </td>
+                <td class="text-end" data-label="Ações">
+                    <button type="button" class="btn btn-sm btn-success avfotos-aprovar"><i class="fa-solid fa-check"></i> Aprovar</button>
+                    <button type="button" class="btn btn-sm btn-danger avfotos-recusar"><i class="fa-solid fa-xmark"></i> Recusar</button>
+                </td>
+            </tr>
+            {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="2" class="text-center text-body-secondary py-4">Nenhuma foto pendente de aprovação no momento.</td>
+            </tr>
+        {{/if}}
+    </tbody>
+</table>
+
+<div class="avfotos-pagination-wrapper d-flex flex-column align-items-center gap-2 mb-4">
+    <small class="text-body-secondary">Total de registros: {{pagination.totalItems}}</small>
+    {{#if pagination.totalPages}}
+    <nav aria-label="Paginação de fotos pendentes">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {{#unless pagination.hasPrev}}disabled{{/unless}}">
+                <a class="page-link" href="/professor/fotos-pendentes?page={{pagination.prevPage}}" aria-label="Página anterior">Anterior</a>
+            </li>
+            {{#each pagination.pageNumbers}}
+                <li class="page-item {{#if isCurrent}}active{{/if}}">
+                    <a class="page-link" href="/professor/fotos-pendentes?page={{number}}">{{number}}</a>
+                </li>
+            {{/each}}
+            <li class="page-item {{#unless pagination.hasNext}}disabled{{/unless}}">
+                <a class="page-link" href="/professor/fotos-pendentes?page={{pagination.nextPage}}" aria-label="Próxima página">Próxima</a>
+            </li>
+        </ul>
+    </nav>
+    {{/if}}
+</div>
+
+<div class="modal fade" id="modalRecusarFoto" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalRecusarFotoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formRecusarFoto">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalRecusarFotoLabel">Recusar foto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-body-secondary mb-2" id="recusarResumo"></p>
+                    <label for="recusarMotivo" class="form-label">Motivo</label>
+                    <textarea
+                        class="form-control"
+                        id="recusarMotivo"
+                        name="reason"
+                        rows="4"
+                        maxlength="255"
+                        required
+                        placeholder="Explique por que a foto está sendo recusada, para o usuário refazer"
+                    ></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar recusa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+        const recusarModalEl = document.getElementById('modalRecusarFoto');
+        const form = document.getElementById('formRecusarFoto');
+        const resumo = document.getElementById('recusarResumo');
+        const motivo = document.getElementById('recusarMotivo');
+        const alertBox = document.getElementById('avFotosAlert');
+
+        function showAlert(msg, tipo) {
+            if (!alertBox) return;
+            alertBox.className = 'alert alert-' + tipo;
+            alertBox.textContent = msg;
+            alertBox.classList.remove('d-none');
+        }
+
+        document.querySelectorAll('.avfotos-aprovar').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const row = btn.closest('tr');
+                const userCode = row.getAttribute('data-user-code');
+                btn.disabled = true;
+                try {
+                    const res = await fetch(`/professor/fotos-pendentes/${userCode}/aprovar`, { method: 'POST' });
+                    const data = await res.json();
+                    showAlert(data.mensagem || (data.ok ? 'Aprovado.' : 'Erro.'), data.ok ? 'success' : 'danger');
+                    if (data.ok) setTimeout(() => window.location.reload(), 600);
+                } catch (err) {
+                    showAlert('Erro de comunicação: ' + err.message, 'danger');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        });
+
+        document.querySelectorAll('.avfotos-recusar').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const row = btn.closest('tr');
+                form.dataset.userCode = row.getAttribute('data-user-code');
+                resumo.textContent = `Usuário: ${row.getAttribute('data-nome') || '-'}`;
+                motivo.value = '';
+                if (window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(recusarModalEl).show();
+                }
+            });
+        });
+
+        form?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userCode = form.dataset.userCode;
+            const reason = motivo.value.trim();
+            if (!reason) { motivo.focus(); return; }
+
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const res = await fetch(`/professor/fotos-pendentes/${userCode}/recusar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `reason=${encodeURIComponent(reason)}`
+                });
+                const data = await res.json();
+                if (window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(recusarModalEl).hide();
+                }
+                showAlert(data.mensagem || (data.ok ? 'Recusado.' : 'Erro.'), data.ok ? 'success' : 'danger');
+                if (data.ok) setTimeout(() => window.location.reload(), 600);
+            } catch (err) {
+                showAlert('Erro de comunicação: ' + err.message, 'danger');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+    });
+})();
+</script>

@@ -5,6 +5,9 @@
         "start": "cross-env NODE_ENV=production node app.js",
         "dev": "cross-env NODE_ENV=development nodemon --ext js,handlebars,json app.js",
         "migrate:meuperfil": "node scripts/migrate_tb_usuarios_meuperfil.js",
+        "migrate:facial-usuarios": "node scripts/migrate_facial_recognition_usuarios.js",
+        "migrate:facial-fotos": "node scripts/migrate_facial_recognition_fotos.js",
+        "rollback:facial": "node scripts/rollback_facial_recognition.js",
         "test": "cross-env NODE_ENV=test jest --runInBand",
         "test:watch": "cross-env NODE_ENV=test jest --watch --runInBand"
     },

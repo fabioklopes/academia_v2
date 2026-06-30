@@ -1,0 +1,69 @@
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Adesão às fotos de perfil</h1>
+</div>
+
+<p class="text-body-secondary">
+    Acompanhe quantos usuários ativos já estão com a foto de perfil no novo padrão (necessário para
+    o módulo de reconhecimento facial entrar em produção).
+</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold">Aprovadas</span>
+            <span>{{stats.approvedPercent}}% ({{stats.counts.APPROVED}} de {{stats.total}})</span>
+        </div>
+        <div class="progress" style="height: 1.5rem;">
+            <div class="progress-bar bg-success" role="progressbar" style="width: {{stats.approvedPercent}}%;" aria-valuenow="{{stats.approvedPercent}}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </div>
+</div>
+
+{{#if stats.allApproved}}
+<div class="alert alert-success">
+    <i class="fa-solid fa-circle-check"></i> Todos os usuários ativos já possuem foto de perfil aprovada. O módulo de reconhecimento facial pode ser colocado em produção.
+</div>
+{{else}}
+<div class="alert alert-warning">
+    <i class="fa-solid fa-triangle-exclamation"></i> Ainda há usuários sem foto aprovada — o módulo de reconhecimento facial não deve ser colocado em produção até que todos completem o cadastro.
+</div>
+{{/if}}
+
+<div class="row g-3">
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="fs-3 fw-bold">{{stats.counts.NONE}}</div>
+                <div class="text-body-secondary small">Sem foto enviada</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-warning">{{stats.counts.PENDING}}</div>
+                <div class="text-body-secondary small">Pendentes de aprovação</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-success">{{stats.counts.APPROVED}}</div>
+                <div class="text-body-secondary small">Aprovadas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-danger">{{stats.counts.REJECTED}}</div>
+                <div class="text-body-secondary small">Recusadas (aguardando reenvio)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <a class="btn btn-outline-primary" href="/professor/fotos-pendentes"><i class="fa-solid fa-id-badge"></i> Ir para a fila de aprovação</a>
+</div>

@@ -1,0 +1,74 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}}" role="alert">
+    {{mensagem}}
+</div>
+{{/if}}
+
+{{#if aviso}}
+<div class="alert alert-warning">
+    <i class="fa-solid fa-triangle-exclamation"></i> Já existe uma foto processada/aplicada para esta turma, data e
+    tipo de aula. Revise com cuidado antes de prosseguir, para não duplicar presenças.
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Reconhecimento facial — revisão</h1>
+</div>
+
+<p class="text-body-secondary">
+    Turma: <strong>{{foto.class_code}}</strong> &middot;
+    Data: <strong>{{foto.reference_date}}</strong> ({{foto.weekday_label}}{{#if foto.sequence_label}}, {{foto.sequence_label}}{{/if}}) &middot;
+    Tipo de aula: <strong>{{foto.class_type}}</strong> &middot;
+    Status: <strong>{{foto.status}}</strong>
+</p>
+
+{{#if (eq foto.status 'FAILED')}}
+<div class="alert alert-danger">
+    <i class="fa-solid fa-circle-xmark"></i> Esta foto não pôde ser processada (serviço de reconhecimento facial
+    indisponível ou erro na detecção). Você pode cancelar esta tentativa e enviar novamente em
+    <a href="/reconhecimento-facial">reconhecimento facial</a>.
+</div>
+<div class="text-center">
+    <button type="button" id="rfBtnCancelar" class="btn btn-outline-danger"><i class="fa-solid fa-trash"></i> Excluir esta tentativa</button>
+</div>
+{{else}}
+    {{#if (eq foto.status 'APPLIED')}}
+    <div class="alert alert-success">
+        <i class="fa-solid fa-circle-check"></i> Presença já aplicada para esta foto.
+    </div>
+    {{/if}}
+    {{#if (eq foto.status 'CANCELLED')}}
+    <div class="alert alert-secondary">
+        <i class="fa-solid fa-ban"></i> Esta foto foi cancelada.
+    </div>
+    {{/if}}
+
+    <p class="text-center">
+        Total de rostos detectados: <strong>{{totalRostos}}</strong> &middot;
+        Reconhecidos automaticamente: <strong class="text-success">{{reconhecidos}}</strong>
+    </p>
+
+    <div class="text-center mb-3">
+        <canvas id="rfCanvas" style="max-width:100%; border:1px solid var(--bs-border-color);"></canvas>
+        <div id="rfCanvasError" class="alert alert-danger d-none mt-2">Não foi possível carregar a foto.</div>
+    </div>
+
+    <div class="d-flex justify-content-center gap-3 mb-4 small">
+        <span><span class="d-inline-block" style="width:14px;height:14px;background:#28a745;border-radius:2px;"></span> Reconhecido</span>
+        <span><span class="d-inline-block" style="width:14px;height:14px;background:#dc3545;border-radius:2px;"></span> Não reconhecido</span>
+        <span><span class="d-inline-block" style="width:14px;height:14px;background:#6c757d;border-radius:2px;"></span> Ignorado</span>
+    </div>
+
+    {{#if (eq foto.status 'REVIEW')}}
+    <h5 class="text-center">Identificação manual</h5>
+    <div id="rfNaoReconhecidos" class="mb-4"></div>
+
+    <div class="d-flex justify-content-center gap-2 mb-4">
+        <button type="button" id="rfBtnAplicar" class="btn btn-success"><i class="fa-solid fa-check-double"></i> Aplicar presença</button>
+        <button type="button" id="rfBtnCancelar" class="btn btn-outline-danger"><i class="fa-solid fa-trash"></i> Cancelar e excluir foto</button>
+    </div>
+    {{/if}}
+{{/if}}
+
+<script id="rfData" type="application/json">{{{canvasDataJSON}}}</script>
+<script src="/js/facial_recognition_canvas.js" defer></script>

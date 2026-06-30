@@ -10,7 +10,9 @@ const models = [
     require('../../../models/MetaAula'),
     require('../../../models/MetaAulaTurma'),
     require('../../../models/AppActivityLog'),
-    require('../../../models/Notificacao')
+    require('../../../models/Notificacao'),
+    require('../../../models/PresencaFoto'),
+    require('../../../models/PresencaFotoRosto')
 ];
 require('../../../models/associations');
 

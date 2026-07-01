@@ -2799,20 +2799,20 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             'class_code'
         ];
         const missing = requiredFields.filter((field) => !String(req.body[field] || '').trim());
-        if (missing.length > 0) {
-            const fieldErrors = {};
-            missing.forEach((field) => {
-                fieldErrors[field] = 'Campo obrigatório.';
-            });
-            if (!req.body.email && !req.body.responsible_id) {
-                fieldErrors.email = 'Campo obrigatório.';
-            }
-            if (!req.body.password1 || !req.body.password2) {
-                fieldErrors.password = 'Campo obrigatório.';
-            }
-            if (!req.file) {
-                fieldErrors.photo = 'Envie uma foto para continuar.';
-            }
+        const fieldErrors = {};
+        missing.forEach((field) => {
+            fieldErrors[field] = 'Campo obrigatório.';
+        });
+        if (!req.body.email && !req.body.responsible_id) {
+            fieldErrors.email = 'Campo obrigatório.';
+        }
+        if (!req.body.password1 || !req.body.password2) {
+            fieldErrors.password = 'Campo obrigatório.';
+        }
+        if (!req.file) {
+            fieldErrors.photo = 'Envie uma foto para continuar.';
+        }
+        if (Object.keys(fieldErrors).length > 0) {
             return renderFormWithError('Preencha todos os campos obrigatórios para continuar.', fieldErrors);
         }
 

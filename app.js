@@ -1059,9 +1059,6 @@ app.get('/mensagens', async (req, res) => {
         }, {});
 
         const where = {};
-        if (req.session.usuario.role !== 'ADM') {
-            where.created_by = req.session.usuario.user_code;
-        }
 
         const mensagensAtivas = await MensagemProfessor.findAll({
             where: {
@@ -1649,9 +1646,6 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
         }
 
         const where = { id: messageId };
-        if (req.session.usuario.role !== 'ADM') {
-            where.created_by = req.session.usuario.user_code;
-        }
 
         const mensagemExistente = await MensagemProfessor.findOne({ where });
         if (!mensagemExistente) {

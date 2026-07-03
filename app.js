@@ -617,8 +617,11 @@ function calculateAgeFromBirthDateParts(parts, todayDate = new Date()) {
 
 /** Monta a lista de aniversariantes do mês para o widget do dashboard. */
 function buildBirthdayWidgetData(users = [], todayDate = new Date()) {
-    const todayDay = todayDate.getDate();
-    const todayMonthIndex = todayDate.getMonth();
+    // Usa fuso fixo de Brasília (UTC-3) para garantir o dia civil correto,
+    // independente do fuso configurado no servidor (ex: TZ=UTC em cloud/Docker).
+    const todayBr = moment(todayDate).utcOffset(PRESENCA_BR_UTC_OFFSET_MIN);
+    const todayDay = todayBr.date();
+    const todayMonthIndex = todayBr.month();
     const hiddenUserCodes = new Set(['JY5TM', 'PETC5', 'Z5LAX', 'ADMIN']);
 
     const birthdays = users
@@ -2858,7 +2861,6 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
         }
 
         const senha = req.body.password2 || '';
-        const fieldErrors = {};
 
         if (!req.body.password1 || req.body.password1 !== senha) {
             if (req.file) {

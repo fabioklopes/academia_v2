@@ -1,0 +1,10 @@
+### ARQUIVO PARA MANUTENÇÃO ###
+
+Este arquivo tem a função de habilitar o site no modo "manutenção".
+Para usá-lo, basta adicionar a extensão *.ativa.
+
+Iniciar manutenção na aplicação
+Execute: mv manutencao manutencao.ativa
+
+Terminar manutenção na aplicação
+Execute: mv manutencao.ativa manutencao

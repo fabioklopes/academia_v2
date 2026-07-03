@@ -750,14 +750,14 @@
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
 
-            // Buscar total de presenças aprovadas na meta atual (se houver)
+            // Buscar total de presenças aprovadas (mesma fonte do relatório por presenças)
             if (alunoId) {
                 try {
                     const res = await fetch(`/aluno/${alunoId}/meta-atual`, { method: 'GET' });
                     if (res.ok) {
                         const payload = await res.json();
-                        const approved = payload && payload.progress ? payload.progress.approvedCount : null;
-                        setText('modalAlunoPresencas', Number.isFinite(approved) ? String(approved) : '-');
+                        const total = payload ? payload.presencasCount : null;
+                        setText('modalAlunoPresencas', Number.isFinite(total) ? String(total) : '-');
                     }
                 } catch (_e) {
                     // silencioso: mantém "-"

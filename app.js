@@ -3597,11 +3597,15 @@ app.get('/aluno/:id/meta-atual', async (req, res) => {
         }
 
         if (aluno.role === 'PRO') {
-            return res.json({ ok: true, progress: null });
+            return res.json({ ok: true, progress: null, presencasCount: 0 });
         }
 
         const progress = await getCurrentMetaProgressForStudent(aluno.user_code);
-        return res.json({ ok: true, progress });
+        // Mesma fonte/critério usado em /relatorios/presencas: COUNT de presenças com status 'A', sem ponderação ou filtro de turma.
+        const presencasCount = await Presenca.count({
+            where: { user_code: aluno.user_code, status: 'A' }
+        });
+        return res.json({ ok: true, progress, presencasCount });
     } catch (err) {
         return res.status(500).json({ ok: false, mensagem: 'Erro ao calcular meta atual: ' + err.message });
     }
@@ -4524,7 +4528,7 @@ async function buildPresencasReportData(startYmd, endYmd) {
     alunos.forEach((a) => {
         a.presencas_count = countMap[String(a.user_code)] || 0;
     });
-    alunos.sort((a, b) => a.sort_key.localeCompare(b.sort_key));
+    alunos.sort((a, b) => (b.presencas_count - a.presencas_count) || a.sort_key.localeCompare(b.sort_key));
 
     return {
         alunos,

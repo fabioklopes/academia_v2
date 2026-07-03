@@ -176,6 +176,7 @@ async function fetchAllStudentsForReports() {
             birth_date_br: birthYmd ? formatDateBrFromYmd(birthYmd) : '-',
             belt_label: beltDisplay.beltLabel,
             degree_label: beltDisplay.degreeLabel,
+            belt_degree_num: beltDisplay.degree,
             belt_summary_label: beltDisplay.summaryLabel,
             belt_image_path: beltDisplay.imagePath,
             belt_group_order_desc: getBeltGroupOrderDesc(plain.actual_belt),
@@ -4395,17 +4396,24 @@ app.get('/relatorios/nomes/download', async (req, res) => {
     });
 });
 
+/** Ordena alunos para o relatório de faixas: faixa mais graduada, graus, ordem alfabética e, por fim, data de nascimento (mais velho primeiro). */
+function compareStudentsForBeltReport(a, b) {
+    const groupDiff = b.belt_group_order_desc - a.belt_group_order_desc;
+    if (groupDiff !== 0) return groupDiff;
+    const degreeDiff = b.belt_degree_num - a.belt_degree_num;
+    if (degreeDiff !== 0) return degreeDiff;
+    const nameDiff = a.sort_key.localeCompare(b.sort_key);
+    if (nameDiff !== 0) return nameDiff;
+    return (a.birth_date_ymd || '9999-99-99').localeCompare(b.birth_date_ymd || '9999-99-99');
+}
+
 app.get('/relatorios/faixas', async (req, res) => {
     const forbidden = ensureProfessorRoute(req, res);
     if (forbidden) return forbidden;
 
     try {
         const alunos = await fetchAllStudentsForReports();
-        alunos.sort((a, b) => {
-            const groupDiff = b.belt_group_order_desc - a.belt_group_order_desc;
-            if (groupDiff !== 0) return groupDiff;
-            return a.sort_key.localeCompare(b.sort_key);
-        });
+        alunos.sort(compareStudentsForBeltReport);
 
         alunos.forEach((a) => {
             const tam = String(a.obi_size || '').trim();
@@ -4431,11 +4439,7 @@ app.get('/relatorios/faixas/download', async (req, res) => {
     const baseName = `${datePrefix}-Lista-de-Faixas.${format}`;
 
     const alunos = await fetchAllStudentsForReports();
-    alunos.sort((a, b) => {
-        const groupDiff = b.belt_group_order_desc - a.belt_group_order_desc;
-        if (groupDiff !== 0) return groupDiff;
-        return a.sort_key.localeCompare(b.sort_key);
-    });
+    alunos.sort(compareStudentsForBeltReport);
 
     if (format === 'xlsx') {
         return exportStudentsToXlsx(res, baseName, alunos.map((a) => ({

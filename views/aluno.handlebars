@@ -750,14 +750,18 @@
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
 
-            // Buscar total de presenças aprovadas (mesma fonte do relatório por presenças)
+            // Buscar total de presenças aprovadas na meta de aula vigente (0 quando não há meta)
             if (alunoId) {
                 try {
                     const res = await fetch(`/aluno/${alunoId}/meta-atual`, { method: 'GET' });
                     if (res.ok) {
                         const payload = await res.json();
-                        const total = payload ? payload.presencasCount : null;
-                        setText('modalAlunoPresencas', Number.isFinite(total) ? String(total) : '-');
+                        if (payload && payload.progress) {
+                            const total = payload.progress.hasMeta ? payload.progress.presencasNaMeta : 0;
+                            setText('modalAlunoPresencas', String(total));
+                        } else {
+                            setText('modalAlunoPresencas', '-');
+                        }
                     }
                 } catch (_e) {
                     // silencioso: mantém "-"

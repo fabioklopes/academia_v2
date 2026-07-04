@@ -1108,6 +1108,9 @@ app.get('/mensagens', async (req, res) => {
     }
 });
 
+// Allowlist fixa de destinos de retorno após criar uma Meta de Aula (evita open redirect).
+const METASDEAULA_RETURN_TO_ALLOWLIST = new Set(['relatorios-presencas']);
+
 app.get('/metasdeaula', async (req, res) => {
     const usuarioSessao = req.session.usuario;
     if (!usuarioSessao) {
@@ -1117,6 +1120,9 @@ app.get('/metasdeaula', async (req, res) => {
     try {
         const isProfessorPage = hasProfessorAccess(usuarioSessao);
         const isStudentPage = usuarioSessao.role === 'STD';
+        const returnTo = METASDEAULA_RETURN_TO_ALLOWLIST.has(String(req.query.returnTo || ''))
+            ? String(req.query.returnTo)
+            : '';
 
         if (!isProfessorPage && !isStudentPage) {
             const mensagem = 'Acesso restrito ao sistema.';
@@ -1126,13 +1132,9 @@ app.get('/metasdeaula', async (req, res) => {
         if (isProfessorPage) {
             const turmas = await Turma.findAll({ where: { active: 'Y' }, order: [['class_name', 'ASC']] });
             const turmasVm = turmas.map((turma) => turma.get({ plain: true }));
-            const where = {};
-            if (usuarioSessao.role !== 'ADM') {
-                where.created_by = usuarioSessao.user_code;
-            }
 
+            // PRO tem o mesmo nível de acesso de ADM aqui: vê as metas de todos os professores.
             const metas = await MetaAula.findAll({
-                where,
                 include: [{ model: Turma, as: 'turmas', through: { attributes: [] } }],
                 order: [['createdAt', 'DESC']]
             });
@@ -1163,7 +1165,8 @@ app.get('/metasdeaula', async (req, res) => {
                 tipoMensagem: req.query.tipo || 'info',
                 isProfessorPage: true,
                 turmas: turmasVm,
-                metas: metasVm
+                metas: metasVm,
+                returnTo
             });
         }
 
@@ -1280,6 +1283,11 @@ app.post('/metasdeaula', async (req, res) => {
         const mensagem = 'Acesso restrito a professor e administrador.';
         return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
     }
+
+    // Nunca confiar no valor do cliente sem revalidar contra a allowlist fixa.
+    const returnTo = METASDEAULA_RETURN_TO_ALLOWLIST.has(String(req.body.return_to || ''))
+        ? String(req.body.return_to)
+        : '';
 
     try {
         const parseDateOnlyFlexible = (value) => {
@@ -1470,8 +1478,15 @@ app.post('/metasdeaula', async (req, res) => {
             }
         }
 
+        if (returnTo && meta && meta.id) {
+            return res.redirect(`/relatorios/presencas?mode=meta&metaId=${encodeURIComponent(meta.id)}`);
+        }
         return res.redirect(`/metasdeaula?mensagem=${encodeURIComponent(mensagem)}&tipo=${tipo}`);
     } catch (err) {
+        if (returnTo) {
+            const mensagemErro = encodeURIComponent(err.message);
+            return res.redirect(`/metasdeaula?returnTo=${encodeURIComponent(returnTo)}&mensagem=${mensagemErro}&tipo=danger`);
+        }
         return res.redirect(`/metasdeaula?mensagem=${encodeURIComponent(err.message)}&tipo=danger`);
     }
 });
@@ -3597,15 +3612,11 @@ app.get('/aluno/:id/meta-atual', async (req, res) => {
         }
 
         if (aluno.role === 'PRO') {
-            return res.json({ ok: true, progress: null, presencasCount: 0 });
+            return res.json({ ok: true, progress: null });
         }
 
         const progress = await getCurrentMetaProgressForStudent(aluno.user_code);
-        // Mesma fonte/critério usado em /relatorios/presencas: COUNT de presenças com status 'A', sem ponderação ou filtro de turma.
-        const presencasCount = await Presenca.count({
-            where: { user_code: aluno.user_code, status: 'A' }
-        });
-        return res.json({ ok: true, progress, presencasCount });
+        return res.json({ ok: true, progress });
     } catch (err) {
         return res.status(500).json({ ok: false, mensagem: 'Erro ao calcular meta atual: ' + err.message });
     }
@@ -3726,6 +3737,86 @@ function normalizeDateOnlyToEnd(dateOnlyIso) {
     return new Date(`${dateOnlyIso}T23:59:59.999`);
 }
 
+/**
+ * Soma o peso das presenças aprovadas dentro de um período e de um conjunto de turmas.
+ * Com `userCode` retorna um número (uso "aluno único": dashboard/modal). Sem `userCode`
+ * (uso em lote: relatório de presenças) retorna um Map<user_code, number>.
+ */
+async function computeWeightedApprovedCount({ userCode = null, userCodes = null, classCodes, startAt, endAt }) {
+    if (!Array.isArray(classCodes) || classCodes.length === 0) {
+        return userCode ? 0 : new Map();
+    }
+
+    const where = {
+        status: 'A',
+        class_code: { [Op.in]: classCodes },
+        request_date: { [Op.between]: [startAt, endAt] }
+    };
+    if (userCode) {
+        where.user_code = userCode;
+    } else if (Array.isArray(userCodes) && userCodes.length > 0) {
+        where.user_code = { [Op.in]: userCodes };
+    }
+
+    const rows = await Presenca.findAll({ where, attributes: ['user_code', 'request_date', 'class_type'] });
+
+    if (userCode) {
+        return rows.reduce((sum, row) => sum + presencaPesoPorSolicitacao(row.request_date, row.class_type), 0);
+    }
+
+    const map = new Map();
+    rows.forEach((row) => {
+        const uc = String(row.user_code);
+        map.set(uc, (map.get(uc) || 0) + presencaPesoPorSolicitacao(row.request_date, row.class_type));
+    });
+    return map;
+}
+
+/**
+ * Encontra a meta imediatamente anterior (mesma turma, já encerrada antes do início da
+ * meta atual, com período de exame definido) cujas presenças aprovadas no período de
+ * Exame viram crédito de carry-over para a meta atual. Propositalmente não encadeia mais
+ * de um nível: olha só para a meta anterior, nunca para a "avó" dela.
+ */
+async function findPreviousMetaForCarryOver(metaAtualStartDateIso, metaAtualClassCodes, excludeMetaId) {
+    if (!Array.isArray(metaAtualClassCodes) || metaAtualClassCodes.length === 0) {
+        return null;
+    }
+
+    const metaAnterior = await MetaAula.findOne({
+        where: {
+            id: { [Op.ne]: excludeMetaId },
+            end_date: { [Op.lt]: metaAtualStartDateIso },
+            exam_start_date: { [Op.ne]: null },
+            exam_end_date: { [Op.ne]: null }
+        },
+        include: [
+            {
+                model: Turma,
+                as: 'turmas',
+                through: { attributes: [] },
+                where: { class_code: { [Op.in]: metaAtualClassCodes } },
+                required: true
+            }
+        ],
+        order: [['end_date', 'DESC'], ['id', 'DESC']]
+    });
+
+    if (!metaAnterior) {
+        return null;
+    }
+
+    const metaAnteriorPlain = metaAnterior.get({ plain: true });
+    const turmasComuns = [...new Set((metaAnteriorPlain.turmas || []).map((t) => t.class_code))]
+        .filter((code) => metaAtualClassCodes.includes(code));
+
+    if (turmasComuns.length === 0) {
+        return null;
+    }
+
+    return { metaAnterior: metaAnteriorPlain, turmasComuns };
+}
+
 /** Calcula quantas presenças o aluno já tem na meta vigente e quantas faltam para atingir a meta. */
 async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new Date() } = {}) {
     const normalizedUserCode = String(userCode || '').trim().toUpperCase();
@@ -3805,20 +3896,26 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
     const startAt = normalizeDateOnlyToStart(startIso);
     const endAt = normalizeDateOnlyToEnd(effectiveEndIso);
 
-    const approvedRows = await Presenca.findAll({
-        where: {
-            user_code: normalizedUserCode,
-            status: 'A',
-            class_code: metaClassCodes.length > 0 ? { [Op.in]: metaClassCodes } : undefined,
-            request_date: { [Op.between]: [startAt, endAt] }
-        },
-        attributes: ['request_date', 'class_type']
+    let approvedCount = await computeWeightedApprovedCount({
+        userCode: normalizedUserCode,
+        classCodes: metaClassCodes,
+        startAt,
+        endAt
     });
 
-    const approvedCount = approvedRows.reduce(
-        (sum, row) => sum + presencaPesoPorSolicitacao(row.request_date, row.class_type),
-        0
-    );
+    // Carry-over: presenças aprovadas no período de Exame da meta anterior (mesma turma)
+    // viram crédito inicial da meta atual, uma vez que a meta anterior encerrou e zerou.
+    const carryOver = await findPreviousMetaForCarryOver(metaPlain.start_date, metaClassCodes, metaPlain.id);
+    if (carryOver) {
+        const examStartAt = normalizeDateOnlyToStart(carryOver.metaAnterior.exam_start_date);
+        const examEndAt = normalizeDateOnlyToEnd(carryOver.metaAnterior.exam_end_date);
+        approvedCount += await computeWeightedApprovedCount({
+            userCode: normalizedUserCode,
+            classCodes: carryOver.turmasComuns,
+            startAt: examStartAt,
+            endAt: examEndAt
+        });
+    }
 
     const totalClasses = Number(metaPlain.total_classes) || 0;
     const minClasses = Number(metaPlain.min_classes) || 0;
@@ -4499,7 +4596,9 @@ async function fetchMetaOptionsForReport(selectedMetaId) {
     });
 }
 
-async function buildPresencasReportData(startYmd, endYmd) {
+// Modo "Período específico": consulta livre por datas, deliberadamente bruta (sem peso,
+// sem restrição de turma, sem carry-over) — mantida intacta, é outra ferramenta.
+async function buildPresencasReportDataByRange(startYmd, endYmd) {
     const startDate = toDateStartOfDay(startYmd);
     const endDate = toDateEndOfDay(endYmd);
     if (!startDate || !endDate) {
@@ -4537,6 +4636,52 @@ async function buildPresencasReportData(startYmd, endYmd) {
     };
 }
 
+// Modo "Meta de aula": mesma regra usada no dashboard/modal (ponderada, restrita à turma
+// da meta, com carry-over do período de Exame da meta anterior). Período completo da meta
+// (start_date..end_date), sem capar em "hoje" — é consulta histórica/administrativa, não
+// um progresso "ao vivo" de um único aluno.
+async function buildPresencasReportDataByMeta(metaId) {
+    const meta = await MetaAula.findByPk(metaId, {
+        include: [{ model: Turma, as: 'turmas', through: { attributes: [] } }]
+    });
+    if (!meta) {
+        return { alunos: [], hasPeriodo: false, periodoLabel: '' };
+    }
+
+    const metaPlain = meta.get({ plain: true });
+    const metaClassCodes = [...new Set((metaPlain.turmas || []).map((t) => t.class_code))].filter(Boolean);
+
+    const startAt = normalizeDateOnlyToStart(metaPlain.start_date);
+    const endAt = normalizeDateOnlyToEnd(metaPlain.end_date);
+
+    const mainCounts = await computeWeightedApprovedCount({ classCodes: metaClassCodes, startAt, endAt });
+
+    let carryOverCounts = new Map();
+    const carryOver = await findPreviousMetaForCarryOver(metaPlain.start_date, metaClassCodes, metaPlain.id);
+    if (carryOver) {
+        const examStartAt = normalizeDateOnlyToStart(carryOver.metaAnterior.exam_start_date);
+        const examEndAt = normalizeDateOnlyToEnd(carryOver.metaAnterior.exam_end_date);
+        carryOverCounts = await computeWeightedApprovedCount({
+            classCodes: carryOver.turmasComuns,
+            startAt: examStartAt,
+            endAt: examEndAt
+        });
+    }
+
+    const alunos = await fetchAllStudentsForReports();
+    alunos.forEach((a) => {
+        const uc = String(a.user_code);
+        a.presencas_count = (mainCounts.get(uc) || 0) + (carryOverCounts.get(uc) || 0);
+    });
+    alunos.sort((a, b) => (b.presencas_count - a.presencas_count) || a.sort_key.localeCompare(b.sort_key));
+
+    return {
+        alunos,
+        hasPeriodo: true,
+        periodoLabel: `${formatDateBrFromYmd(metaPlain.start_date)} - ${formatDateBrFromYmd(metaPlain.end_date)}`
+    };
+}
+
 app.get('/relatorios/presencas', async (req, res) => {
     const forbidden = ensureProfessorRoute(req, res);
     if (forbidden) return forbidden;
@@ -4549,27 +4694,20 @@ app.get('/relatorios/presencas', async (req, res) => {
 
         const metas = await fetchMetaOptionsForReport(metaId);
 
-        let startYmd = '';
-        let endYmd = '';
         let downloadQuery = '';
+        let report = { alunos: [], hasPeriodo: false, periodoLabel: '' };
 
         if (selectedMode === 'meta' && metaId) {
-            const meta = await MetaAula.findByPk(metaId);
-            if (meta) {
-                const plain = meta.get({ plain: true });
-                startYmd = plain.start_date;
-                endYmd = plain.end_date;
+            report = await buildPresencasReportDataByMeta(metaId);
+            if (report.hasPeriodo) {
                 downloadQuery = `&mode=meta&metaId=${encodeURIComponent(metaId)}`;
             }
         } else if (selectedMode === 'range' && selectedStart && selectedEnd) {
-            startYmd = selectedStart;
-            endYmd = selectedEnd;
-            downloadQuery = `&mode=range&start=${encodeURIComponent(selectedStart)}&end=${encodeURIComponent(selectedEnd)}`;
+            report = await buildPresencasReportDataByRange(selectedStart, selectedEnd);
+            if (report.hasPeriodo) {
+                downloadQuery = `&mode=range&start=${encodeURIComponent(selectedStart)}&end=${encodeURIComponent(selectedEnd)}`;
+            }
         }
-
-        const report = startYmd && endYmd
-            ? await buildPresencasReportData(startYmd, endYmd)
-            : { alunos: [], hasPeriodo: false, periodoLabel: '' };
 
         return res.render('relatorios_presencas', {
             metas,
@@ -4602,26 +4740,18 @@ app.get('/relatorios/presencas/download', async (req, res) => {
     const selectedStart = req.query.start ? String(req.query.start) : '';
     const selectedEnd = req.query.end ? String(req.query.end) : '';
 
-    let startYmd = '';
-    let endYmd = '';
+    let report = { alunos: [], hasPeriodo: false, periodoLabel: '' };
 
     if (selectedMode === 'meta' && metaId) {
-        const meta = await MetaAula.findByPk(metaId);
-        if (meta) {
-            const plain = meta.get({ plain: true });
-            startYmd = plain.start_date;
-            endYmd = plain.end_date;
-        }
+        report = await buildPresencasReportDataByMeta(metaId);
     } else if (selectedMode === 'range' && selectedStart && selectedEnd) {
-        startYmd = selectedStart;
-        endYmd = selectedEnd;
+        report = await buildPresencasReportDataByRange(selectedStart, selectedEnd);
     }
 
-    if (!startYmd || !endYmd) {
+    if (!report.hasPeriodo) {
         return res.status(400).send('Período ausente.');
     }
 
-    const report = await buildPresencasReportData(startYmd, endYmd);
     const alunos = report.alunos || [];
 
     const datePrefix = getTodayYmd();

@@ -1,0 +1,103 @@
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <h1 class="mb-0"><i class="fa-solid fa-circle-question"></i> Perguntas Frequentes</h1>
+    <a href="/auth/login" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-arrow-left"></i> Voltar ao Login
+    </a>
+</div>
+
+<div class="accordion" id="faqAccordion">
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq1"
+                aria-expanded="false" aria-controls="faq1">
+                <i class="fa-solid fa-lock me-2 text-secondary"></i>
+                Não consigo acessar o meu cadastro
+            </button>
+        </h2>
+        <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">
+                Tente utilizar o link <strong>"Esqueci minha senha"</strong>, lá na página principal.
+                Por lá, você vai informar o e-mail que estava usando para que a aplicação envie um link.
+                Se este e-mail estiver cadastrado no sistema, o link chegará e você poderá cadastrar uma nova senha.
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq2"
+                aria-expanded="false" aria-controls="faq2">
+                <i class="fa-solid fa-envelope me-2 text-secondary"></i>
+                Estou usando o "Esqueci minha senha" e não está mandando nada
+            </button>
+        </h2>
+        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">
+                <p>Provavelmente são 3 fatores que podem estar impedindo esta função:</p>
+                <ol>
+                    <li>Seu e-mail está incorreto e por isso a aplicação não conseguirá mandar o link para você;</li>
+                    <li>Você ainda não fez o seu cadastro na nova versão da aplicação;</li>
+                    <li>Caso já tenha feito o cadastro, ele ainda está pendente de aprovação por um dos professores.
+                        Neste caso, entre em contato com um dos professores para verificar a possibilidade da aprovação
+                        da solicitação de cadastro.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq3"
+                aria-expanded="false" aria-controls="faq3">
+                <i class="fa-solid fa-calendar-xmark me-2 text-secondary"></i>
+                Minhas presenças sumiram
+            </button>
+        </h2>
+        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">
+                Sim! E nós sabemos disso. Lá no início, a versão 1.0 foi criada apenas para adaptação dos alunos ao
+                novo sistema. Já nesta versão mais moderna e atualizada (versão 2.0) as presenças serão contabilizadas
+                de formas diferentes e <strong>não serão acumulativas</strong>. Ou seja, não vai somar com presenças
+                anteriores, mas sim uma média por <strong>Metas de Aulas</strong>.
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#faq4"
+                aria-expanded="false" aria-controls="faq4">
+                <i class="fa-solid fa-hands-holding-child me-2 text-secondary"></i>
+                Cadastro de Dependentes
+            </button>
+        </h2>
+        <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">
+                <p>Se você está tendo problemas ao cadastrar seu(s) dependente(s), mas no momento da validação do
+                    e-mail titular o sistema não está localizando seu cadastro, alguns fatores podem estar
+                    relacionados a isso:</p>
+                <ol>
+                    <li>Seu cadastro não foi realizado ainda: para isso, um titular precisa estar cadastrado e
+                        devidamente aprovado no sistema por um professor;</li>
+                    <li>Você precisa usar o mesmo e-mail do titular para o dependente. Ou seja, no momento da
+                        validação da conta responsável, você deverá usar o mesmo e-mail que cadastrou para você
+                        mesmo;</li>
+                    <li>No campo <strong>"Senha"</strong> e <strong>"Repita a sua senha"</strong> use a mesma
+                        senha do seu cadastro. Só então o(s) seu(s) dependente(s) aparecerá(ão) para você,
+                        no seu Menu de Aluno.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="mt-4 text-center text-muted small">
+    Não encontrou o que procurava?
+    <a href="/contato" class="link-secondary">Entre em contato conosco</a>.
+</div>

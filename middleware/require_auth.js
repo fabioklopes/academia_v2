@@ -15,7 +15,9 @@ function isPublicRoute(pathname) {
         '/aluno/novo',
         '/aluno/cadastrar',
         '/aluno/verificar-titular',
-        '/ignition'
+        '/ignition',
+        '/faq',
+        '/contato'
     ]);
 
     return publicRoutes.has(pathname) || pathname.startsWith('/uploads/');

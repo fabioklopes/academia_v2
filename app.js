@@ -5280,6 +5280,114 @@ app.post('/mensagens/mestre/:id/naoLida', async (req, res) => {
 });
 
 
+// ============================================================================
+// FAQ
+// ============================================================================
+
+app.get('/faq', (req, res) => {
+    res.render('faq', { pageTitle: 'Perguntas Frequentes' });
+});
+
+// ============================================================================
+// CONTATO — formulário de contato com envio por e-mail
+// ============================================================================
+
+const _multer = require('multer');
+const multerContact = _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.get('/contato', (req, res) => {
+    res.render('contato', { pageTitle: 'Fale Conosco' });
+});
+
+app.post('/contato', multerContact.single('arquivo'), async (req, res) => {
+    const nome = String(req.body.nome || '').trim();
+    const whatsapp = String(req.body.whatsapp || '').replace(/\D/g, '').slice(0, 11);
+    const emailRemetente = normalizeEmail(req.body.email || '');
+    const assunto = String(req.body.assunto || '').trim();
+    const mensagemTexto = String(req.body.mensagem || '').trim();
+
+    const camposObrigatorios = !nome || !whatsapp || !emailRemetente || !assunto || !mensagemTexto;
+    if (camposObrigatorios) {
+        return res.render('contato', {
+            pageTitle: 'Fale Conosco',
+            mensagem: 'Preencha todos os campos obrigatórios antes de enviar.',
+            tipoMensagem: 'erro'
+        });
+    }
+
+    const transportConfig = getPasswordResetTransportConfig();
+    if (!transportConfig) {
+        console.warn('[contato] SMTP não configurado — mensagem de contato não enviada.');
+        return res.render('contato', {
+            pageTitle: 'Fale Conosco',
+            mensagem: 'O serviço de e-mail não está disponível no momento. Tente novamente mais tarde.',
+            tipoMensagem: 'erro'
+        });
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            ...transportConfig,
+            connectionTimeout: 10000,
+            greetingTimeout:   5000,
+            socketTimeout:     10000
+        });
+        const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || transportConfig.auth.user;
+
+        const mailOptions = {
+            from,
+            to: 'codeonsoftwares@gmail.com',
+            replyTo: emailRemetente,
+            subject: `[Contato - Sistema Oss] ${assunto}`,
+            text: [
+                `Nome: ${nome}`,
+                `WhatsApp: ${whatsapp}`,
+                `E-mail: ${emailRemetente}`,
+                `Assunto: ${assunto}`,
+                '',
+                'Mensagem:',
+                mensagemTexto
+            ].join('\n'),
+            html: `
+                <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #212529;">
+                    <h2 style="margin-bottom: 16px;">Formulário de Contato — Sistema Oss</h2>
+                    <table style="border-collapse: collapse; width: 100%; max-width: 560px;">
+                        <tr><td style="padding: 4px 8px; font-weight: 600; width: 110px;">Nome</td><td style="padding: 4px 8px;">${nome}</td></tr>
+                        <tr><td style="padding: 4px 8px; font-weight: 600;">WhatsApp</td><td style="padding: 4px 8px;">${whatsapp}</td></tr>
+                        <tr><td style="padding: 4px 8px; font-weight: 600;">E-mail</td><td style="padding: 4px 8px;"><a href="mailto:${emailRemetente}">${emailRemetente}</a></td></tr>
+                        <tr><td style="padding: 4px 8px; font-weight: 600;">Assunto</td><td style="padding: 4px 8px;">${assunto}</td></tr>
+                    </table>
+                    <hr style="margin: 16px 0;">
+                    <p style="white-space: pre-line;">${mensagemTexto}</p>
+                </div>
+            `
+        };
+
+        if (req.file && req.file.buffer && req.file.originalname) {
+            mailOptions.attachments = [{
+                filename: req.file.originalname,
+                content: req.file.buffer,
+                contentType: req.file.mimetype
+            }];
+        }
+
+        await transporter.sendMail(mailOptions);
+
+        return res.render('contato', {
+            pageTitle: 'Fale Conosco',
+            mensagem: 'Mensagem enviada com sucesso! Entraremos em contato em breve.',
+            tipoMensagem: 'sucesso'
+        });
+    } catch (err) {
+        console.error('[contato] Erro ao enviar e-mail:', err.message);
+        return res.render('contato', {
+            pageTitle: 'Fale Conosco',
+            mensagem: 'Ocorreu um erro ao enviar sua mensagem. Tente novamente em instantes.',
+            tipoMensagem: 'erro'
+        });
+    }
+});
+
 registerAuthRoutes(app, { buildBirthdayLoginModalData });
 
 app.use(createNotFoundMiddleware({ isProduction }));

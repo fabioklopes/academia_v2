@@ -157,7 +157,12 @@ async function sendResetPasswordEmail(req, email, token, totalUsuarios) {
         };
     }
 
-    const transporter = nodemailer.createTransport(transportConfig);
+    const transporter = nodemailer.createTransport({
+        ...transportConfig,
+        connectionTimeout: 10000,
+        greetingTimeout:   5000,
+        socketTimeout:     10000
+    });
     const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || transportConfig.auth.user;
     const pluralLabel = totalUsuarios > 1 ? 'cadastros' : 'cadastro';
 

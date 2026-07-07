@@ -468,8 +468,9 @@
                             <span id="modalAlunoRole">-</span>
                         </div>
                         <div class="col-12">
-                            <span class="aluno-detail-label">Quantidade de Presenças:</span>
+                            <span class="aluno-detail-label">Presenças na meta vigente:</span>
                             <span id="modalAlunoPresencas">-</span>
+                            <small id="modalAlunoPresencasPeriodo" class="text-body-secondary d-block"></small>
                         </div>
                         <div class="col-12">
                             <span class="aluno-detail-label">WhatsApp:</span>
@@ -743,6 +744,7 @@
             setText('modalAlunoEmail', trigger.getAttribute('data-email'));
             setText('modalAlunoRole', trigger.getAttribute('data-role'));
             setText('modalAlunoPresencas', '-');
+            setText('modalAlunoPresencasPeriodo', '');
             setText('modalAlunoPhone', trigger.getAttribute('data-phone'));
             setText('modalAlunoBirth', trigger.getAttribute('data-birth-date'));
             setText('modalAlunoBeltSummary', trigger.getAttribute('data-belt-summary'));
@@ -750,14 +752,31 @@
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
 
-            // Buscar total de presenças aprovadas (mesma fonte do relatório por presenças)
+            // Presenças (sem ponderação) dentro do período da meta de aula vigente do aluno
             if (alunoId) {
                 try {
                     const res = await fetch(`/aluno/${alunoId}/meta-atual`, { method: 'GET' });
                     if (res.ok) {
                         const payload = await res.json();
+                        const progress = payload ? payload.progress : null;
                         const total = payload ? payload.presencasCount : null;
                         setText('modalAlunoPresencas', Number.isFinite(total) ? String(total) : '-');
+
+                        const toBr = (iso) => {
+                            if (!iso || typeof iso !== 'string') return '';
+                            const [y, m, d] = iso.split('-');
+                            return (y && m && d) ? `${d}/${m}/${y}` : '';
+                        };
+                        const periodoEl = document.getElementById('modalAlunoPresencasPeriodo');
+                        if (periodoEl) {
+                            if (progress && progress.hasMeta) {
+                                const inicio = toBr(progress.startDate);
+                                const fim = toBr(progress.endDate);
+                                periodoEl.textContent = `Meta vigente: ${inicio} à ${fim}`;
+                            } else {
+                                periodoEl.textContent = 'Sem meta de aula vigente';
+                            }
+                        }
                     }
                 } catch (_e) {
                     // silencioso: mantém "-"

@@ -3601,11 +3601,8 @@ app.get('/aluno/:id/meta-atual', async (req, res) => {
         }
 
         const progress = await getCurrentMetaProgressForStudent(aluno.user_code);
-        // Mesma fonte/critério usado em /relatorios/presencas: COUNT de presenças com status 'A', sem ponderação ou filtro de turma.
-        const presencasCount = await Presenca.count({
-            where: { user_code: aluno.user_code, status: 'A' }
-        });
-        return res.json({ ok: true, progress, presencasCount });
+        // Contagem de presenças (sem ponderação) restrita ao período (start_date/end_date) da meta vigente.
+        return res.json({ ok: true, progress, presencasCount: progress.presencasCount });
     } catch (err) {
         return res.status(500).json({ ok: false, mensagem: 'Erro ao calcular meta atual: ' + err.message });
     }
@@ -3738,6 +3735,9 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
             minClasses: 0,
             approvedCount: 0,
             presencasNaMeta: 0,
+            presencasCount: 0,
+            startDate: null,
+            endDate: null,
             percent: 0
         };
     }
@@ -3756,6 +3756,9 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
             minClasses: 0,
             approvedCount: 0,
             presencasNaMeta: 0,
+            presencasCount: 0,
+            startDate: null,
+            endDate: null,
             percent: 0
         };
     }
@@ -3789,6 +3792,9 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
             minClasses: 0,
             approvedCount: 0,
             presencasNaMeta: 0,
+            presencasCount: 0,
+            startDate: null,
+            endDate: null,
             percent: 0
         };
     }
@@ -3825,6 +3831,8 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
     const percentRaw = totalClasses > 0 ? (approvedCount / totalClasses) * 100 : 0;
     const percent = Math.max(0, Math.min(100, Math.round(percentRaw)));
     const presencasNaMeta = Number(approvedCount) || 0;
+    // Contagem simples (sem ponderação de terça/Integral), mas com o mesmo escopo de turma e período da meta vigente.
+    const presencasCount = approvedRows.length;
 
     return {
         hasMeta: true,
@@ -3834,6 +3842,9 @@ async function getCurrentMetaProgressForStudent(userCode, { referenceDate = new 
         minClasses,
         approvedCount: presencasNaMeta,
         presencasNaMeta,
+        presencasCount,
+        startDate: startIso,
+        endDate: metaPlain.end_date,
         percent
     };
 }

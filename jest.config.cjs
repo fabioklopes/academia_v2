@@ -18,6 +18,7 @@ module.exports = {
     ],
     coveragePathIgnorePatterns: ['/node_modules/'],
     globalTeardown: '<rootDir>/tests/globalTeardown.cjs',
-    // Pool Sequelize mantém handles; encerramento limpo via globalTeardown + saída garantida em CI
+    // Pool Sequelize mantém handles; 
+    // encerramento limpo via globalTeardown + saída garantida em CI
     forceExit: true
 };

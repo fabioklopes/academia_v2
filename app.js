@@ -4933,34 +4933,56 @@ app.post('/presenca/solicitar', async (req, res) => {
                         request_date: { [Op.between]: [dupWindow.start, dupWindow.end] },
                         status: { [Op.ne]: 'C' }
                     },
-                    attributes: ['id', 'request_date']
+                    attributes: ['id', 'request_date', 'class_type']
                 }));
-            if (candidatosDup && candidatosDup.some((row) => presencaMatchesSolicitacaoDay(row.request_date, dateStr))) {
-                errors.push({ date: dateStr, error: 'Já existe uma solicitação para este dia.' });
+            const candidatosDoDia = (candidatosDup || []).filter((row) =>
+                presencaMatchesSolicitacaoDay(row.request_date, dateStr)
+            );
+
+            const dayOfWeek = civilDateWeekdaySun0FromYmd(dateStr); // 0=Dom ... 2=Ter
+
+            if (dayOfWeek !== 2) {
+                if (candidatosDoDia.length > 0) {
+                    errors.push({ date: dateStr, error: 'Já existe uma solicitação para este dia.' });
+                    continue;
+                }
+                const presenca = await Presenca.create({
+                    request_date: range.noon,
+                    user_code: userCode,
+                    status: 'P',
+                    class_type: 'Integral',
+                    class_code: selectedClassCode
+                });
+                results.push(buildPresencaViewModel(presenca));
                 continue;
             }
 
-            const dayOfWeek = civilDateWeekdaySun0FromYmd(dateStr); // 0=Dom ... 2=Ter
-            let class_type = 'Integral';
-            if (dayOfWeek === 2) {
-                const ct = classTypes && classTypes[dateStr] ? classTypes[dateStr] : 'Integral';
-                if (!['Integral', 'Gi', 'No-Gi'].includes(ct)) {
-                    errors.push({ date: dateStr, error: 'Tipo de aula inválido.' });
+            // Terça-feira: até 2 solicitações no mesmo dia, uma para cada aula (Gi e No-Gi).
+            const ct = classTypes && classTypes[dateStr] ? classTypes[dateStr] : 'Integral';
+            if (!['Integral', 'Gi', 'No-Gi'].includes(ct)) {
+                errors.push({ date: dateStr, error: 'Tipo de aula inválido.' });
+                continue;
+            }
+            const slotsRequested = ct === 'Integral' ? ['Gi', 'No-Gi'] : [ct];
+            const slotsOcupados = new Set(candidatosDoDia.map((row) => row.class_type));
+
+            for (const slot of slotsRequested) {
+                if (slotsOcupados.has(slot)) {
+                    errors.push({
+                        date: dateStr,
+                        error: `Já existe uma solicitação para a ${slot === 'Gi' ? '1ª aula' : '2ª aula'} nesse dia.`
+                    });
                     continue;
                 }
-                class_type = ct;
+                const presenca = await Presenca.create({
+                    request_date: range.noon,
+                    user_code: userCode,
+                    status: 'P',
+                    class_type: slot,
+                    class_code: selectedClassCode
+                });
+                results.push(buildPresencaViewModel(presenca));
             }
-
-            const presenca = await Presenca.create({
-                request_date: range.noon,
-                user_code: userCode,
-                status: 'P',
-                class_type,
-                class_code: selectedClassCode
-            });
-
-            const vm = buildPresencaViewModel(presenca);
-            results.push(vm);
         }
 
         return res.json({ ok: true, results, errors });

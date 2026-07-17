@@ -2728,6 +2728,14 @@ app.get('/aluno/novo', async (req, res) => {
         const turmaOptions = await getActiveTurmasOptions();
         const vm = buildUserFormViewModel(null, false, turmaOptions);
 
+        Object.assign(vm, {
+            metaTitle: 'Solicitar Acesso | Cadastro de Aluno CRTN Belém',
+            metaDescription: 'Cadastre-se como novo aluno no portal CRTN Belém e acompanhe turmas, presenças e metas de treino.',
+            metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+            metaImage: '/img/logotipo.ico',
+            metaRobots: 'index,follow'
+        });
+
         // Capturar mensagem da sessão se existir
         if (req.session.mensagem) {
             vm.mensagem = req.session.mensagem;
@@ -2793,7 +2801,12 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             obiSizeOptions: OBI_SIZE_OPTIONS,
             mensagem: errorMessage,
             tipoMensagem: 'erro',
-            camposErro: fieldErrors
+            camposErro: fieldErrors,
+            metaTitle: 'Solicitar Acesso | Novo Aluno CRTN Belém',
+            metaDescription: 'Cadastre-se como novo aluno no sistema CRTN Belém para acompanhamento de turmas, presenças e metas.',
+            metaUrl: `${req.protocol}://${req.get('host')}/aluno/novo`,
+            metaImage: '/img/logotipo.ico',
+            metaRobots: 'index,follow'
         };
 
         res.render('formnovousuario', vm);
@@ -5452,7 +5465,14 @@ app.post('/mensagens/mestre/:id/naoLida', async (req, res) => {
 // ============================================================================
 
 app.get('/faq', (req, res) => {
-    res.render('faq', { pageTitle: 'Perguntas Frequentes' });
+    res.render('faq', {
+        pageTitle: 'Perguntas Frequentes',
+        metaTitle: 'FAQ | CRTN Belém',
+        metaDescription: 'Perguntas frequentes sobre cadastro, login, recuperação de senha e uso do sistema CRTN Belém.',
+        metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+        metaImage: '/img/logotipo.ico',
+        metaRobots: 'index,follow'
+    });
 });
 
 // ============================================================================
@@ -5463,7 +5483,14 @@ const _multer = require('multer');
 const multerContact = _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 app.get('/contato', (req, res) => {
-    res.render('contato', { pageTitle: 'Fale Conosco' });
+    res.render('contato', {
+        pageTitle: 'Fale Conosco',
+        metaTitle: 'Contato | CRTN Belém',
+        metaDescription: 'Fale conosco sobre cadastro, acesso, dúvidas ou suporte da plataforma CRTN Belém.',
+        metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+        metaImage: '/img/logotipo.ico',
+        metaRobots: 'index,follow'
+    });
 });
 
 app.post('/contato', multerContact.single('arquivo'), async (req, res) => {
@@ -5478,7 +5505,12 @@ app.post('/contato', multerContact.single('arquivo'), async (req, res) => {
         return res.render('contato', {
             pageTitle: 'Fale Conosco',
             mensagem: 'Preencha todos os campos obrigatórios antes de enviar.',
-            tipoMensagem: 'erro'
+            tipoMensagem: 'erro',
+            metaTitle: 'Contato | CRTN Belém',
+            metaDescription: 'Fale conosco sobre cadastro, acesso, dúvidas ou suporte da plataforma CRTN Belém.',
+            metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+            metaImage: '/img/logotipo.ico',
+            metaRobots: 'index,follow'
         });
     }
 
@@ -5488,7 +5520,12 @@ app.post('/contato', multerContact.single('arquivo'), async (req, res) => {
         return res.render('contato', {
             pageTitle: 'Fale Conosco',
             mensagem: 'O serviço de e-mail não está disponível no momento. Tente novamente mais tarde.',
-            tipoMensagem: 'erro'
+            tipoMensagem: 'erro',
+            metaTitle: 'Contato | CRTN Belém',
+            metaDescription: 'Fale conosco sobre cadastro, acesso, dúvidas ou suporte da plataforma CRTN Belém.',
+            metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+            metaImage: '/img/logotipo.ico',
+            metaRobots: 'index,follow'
         });
     }
 
@@ -5543,14 +5580,24 @@ app.post('/contato', multerContact.single('arquivo'), async (req, res) => {
         return res.render('contato', {
             pageTitle: 'Fale Conosco',
             mensagem: 'Mensagem enviada com sucesso! Entraremos em contato em breve.',
-            tipoMensagem: 'sucesso'
+            tipoMensagem: 'sucesso',
+            metaTitle: 'Contato | CRTN Belém',
+            metaDescription: 'Fale conosco sobre cadastro, acesso, dúvidas ou suporte da plataforma CRTN Belém.',
+            metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+            metaImage: '/img/logotipo.ico',
+            metaRobots: 'index,follow'
         });
     } catch (err) {
         console.error('[contato] Erro ao enviar e-mail:', err.message);
         return res.render('contato', {
             pageTitle: 'Fale Conosco',
             mensagem: 'Ocorreu um erro ao enviar sua mensagem. Tente novamente em instantes.',
-            tipoMensagem: 'erro'
+            tipoMensagem: 'erro',
+            metaTitle: 'Contato | CRTN Belém',
+            metaDescription: 'Fale conosco sobre cadastro, acesso, dúvidas ou suporte da plataforma CRTN Belém.',
+            metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+            metaImage: '/img/logotipo.ico',
+            metaRobots: 'index,follow'
         });
     }
 });

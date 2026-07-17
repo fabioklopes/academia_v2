@@ -132,6 +132,9 @@ function buildResetPasswordMessages(options) {
 function renderForgotPasswordPage(res, overrides = {}) {
     const email = typeof overrides.email === 'string' ? overrides.email : '';
 
+    const baseUrl = overrides.baseUrl || 'https://iliac-markita-nattily.ngrok-free.dev';
+    const pageUrl = overrides.pageUrl || `${baseUrl}/auth/forgot-password`;
+
     return res.render('resetpassword', {
         pageTitle: overrides.pageTitle || 'Redefinição de Senha',
         email,
@@ -143,7 +146,12 @@ function renderForgotPasswordPage(res, overrides = {}) {
         previewResetLink: overrides.previewResetLink || '',
         previewResetMessage: overrides.previewResetMessage || '',
         canSubmitReset: overrides.canSubmitReset !== false,
-        showBackToLogin: overrides.showBackToLogin !== false
+        showBackToLogin: overrides.showBackToLogin !== false,
+        metaTitle: overrides.metaTitle || 'Recuperar Senha | CRTN Belém',
+        metaDescription: overrides.metaDescription || 'Recupere sua senha do portal CRTN Belém para acessar seu cadastro, turmas e presenças.',
+        metaUrl: overrides.metaUrl || pageUrl,
+        metaImage: overrides.metaImage || '/img/logotipo.ico',
+        metaRobots: overrides.metaRobots || 'index,follow'
     });
 }
 

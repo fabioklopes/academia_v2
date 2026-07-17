@@ -51,7 +51,9 @@ function registerAuthRoutes(app, deps) {
             layout: false,
             erro: req.query.erro || '',
             aviso: req.query.aviso || '',
-            redirect
+            redirect,
+            protocol: req.protocol,
+            host: req.get('host')
         });
     });
 
@@ -145,7 +147,9 @@ function registerAuthRoutes(app, deps) {
     });
 
     app.get('/auth/forgot-password', (req, res) => {
-        renderForgotPasswordPage(res);
+        renderForgotPasswordPage(res, {
+            metaUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`
+        });
     });
 
     app.post('/auth/forgot-password', async (req, res) => {
@@ -156,7 +160,8 @@ function registerAuthRoutes(app, deps) {
                 email,
                 statusMessages: buildForgotPasswordMessages({
                     errorMessage: 'Informe o e-mail cadastrado para continuar.'
-                })
+                }),
+                metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
             });
         }
 
@@ -189,14 +194,16 @@ function registerAuthRoutes(app, deps) {
             return renderForgotPasswordPage(res, {
                 requestMode: false,
                 email: '',
-                statusMessages: buildForgotPasswordAcknowledgementMessage()
+                statusMessages: buildForgotPasswordAcknowledgementMessage(),
+                metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
             });
         } catch (error) {
             console.error('Erro ao processar solicitação de redefinição:', error);
             return renderForgotPasswordPage(res, {
                 requestMode: false,
                 email: '',
-                statusMessages: buildForgotPasswordAcknowledgementMessage()
+                statusMessages: buildForgotPasswordAcknowledgementMessage(),
+                metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
             });
         }
     });
@@ -215,7 +222,8 @@ function registerAuthRoutes(app, deps) {
                 statusMessages: buildResetPasswordMessages({
                     errorMessage: 'O link de redefinição está incompleto. Solicite um novo link para continuar.',
                     infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
-                })
+                }),
+                metaUrl: `${req.protocol}://${req.get('host')}/auth/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
             });
         }
 
@@ -231,7 +239,8 @@ function registerAuthRoutes(app, deps) {
                     statusMessages: buildResetPasswordMessages({
                         errorMessage: 'Este link é inválido ou já expirou. Solicite uma nova redefinição.',
                         infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
-                    })
+                    }),
+                    metaUrl: `${req.protocol}://${req.get('host')}/auth/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
                 });
             }
 
@@ -244,7 +253,8 @@ function registerAuthRoutes(app, deps) {
                     infoMessage: validUsuarios.length > 1
                         ? 'A senha que você definir agora será aplicada a todos os cadastros vinculados a este e-mail.'
                         : `Defina sua nova senha. Este link expira em ${RESET_TOKEN_TTL_MINUTES} minutos.`
-                })
+                }),
+                metaUrl: `${req.protocol}://${req.get('host')}/auth/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
             });
         } catch (error) {
             console.error('Erro ao validar link de redefinição:', error);
@@ -257,7 +267,8 @@ function registerAuthRoutes(app, deps) {
                 statusMessages: buildResetPasswordMessages({
                     errorMessage: 'Não foi possível validar este link agora. Solicite uma nova redefinição.',
                     infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
-                })
+                }),
+                metaUrl: `${req.protocol}://${req.get('host')}/auth/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
             });
         }
     });

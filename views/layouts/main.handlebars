@@ -6,7 +6,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="mobile-web-app-capable" content="yes">
         
-        <title>Sistema Oss - Gestão de Jiu-jitsu</title>
+        <title>{{#if metaTitle}}{{metaTitle}}{{else}}Sistema Oss - Gestão de Jiu-jitsu{{/if}}</title>
+        <meta name="description" content="{{#if metaDescription}}{{metaDescription}}{{else}}Sistema gerenciador de alunos, turmas e controle de presenças{{/if}}">
+        <link rel="canonical" href="{{#if metaUrl}}{{metaUrl}}{{else}}https://iliac-markita-nattily.ngrok-free.dev{{/if}}">
+        <meta name="robots" content="{{#if metaRobots}}{{metaRobots}}{{else}}index,follow{{/if}}">
 
         <link href="/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
@@ -225,19 +228,19 @@
         </style>
 
         <!-- Título do preview -->
-        <meta property="og:title" content="CRTN Belém - Jiu-jitsu ADPM">
+        <meta property="og:title" content="{{#if metaTitle}}{{metaTitle}}{{else}}CRTN Belém - Jiu-jitsu ADPM{{/if}}">
 
         <!-- Descrição do preview -->
-        <meta property="og:description" content="Sistema gerenciador de alunos, turmas e controle de presenças">
+        <meta property="og:description" content="{{#if metaDescription}}{{metaDescription}}{{else}}Sistema gerenciador de alunos, turmas e controle de presenças{{/if}}">
 
         <!-- Imagem do preview -->
-        <meta property="og:image" content="/img/logotipo.ico">
+        <meta property="og:image" content="{{#if metaImage}}{{metaImage}}{{else}}/img/logotipo.ico{{/if}}">
 
         <!-- URL da página -->
-        <meta property="og:url" content="https://iliac-markita-nattily.ngrok-free.dev">
+        <meta property="og:url" content="{{#if metaUrl}}{{metaUrl}}{{else}}https://iliac-markita-nattily.ngrok-free.dev{{/if}}">
 
         <!-- Tipo de conteúdo -->
-        <meta property="og:type" content="website">
+        <meta property="og:type" content="{{#if metaType}}{{metaType}}{{else}}website{{/if}}">
 
     </head>
 

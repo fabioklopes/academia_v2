@@ -752,12 +752,17 @@
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
 
+<<<<<<< HEAD
             // Presenças (sem ponderação) dentro do período da meta de aula vigente do aluno
+=======
+            // Buscar total de presenças aprovadas na meta de aula vigente (0 quando não há meta)
+>>>>>>> presencas-vs-meta-de-aula
             if (alunoId) {
                 try {
                     const res = await fetch(`/aluno/${alunoId}/meta-atual`, { method: 'GET' });
                     if (res.ok) {
                         const payload = await res.json();
+<<<<<<< HEAD
                         const progress = payload ? payload.progress : null;
                         const total = payload ? payload.presencasCount : null;
                         setText('modalAlunoPresencas', Number.isFinite(total) ? String(total) : '-');
@@ -776,6 +781,13 @@
                             } else {
                                 periodoEl.textContent = 'Sem meta de aula vigente';
                             }
+=======
+                        if (payload && payload.progress) {
+                            const total = payload.progress.hasMeta ? payload.progress.presencasNaMeta : 0;
+                            setText('modalAlunoPresencas', String(total));
+                        } else {
+                            setText('modalAlunoPresencas', '-');
+>>>>>>> presencas-vs-meta-de-aula
                         }
                     }
                 } catch (_e) {

@@ -3617,12 +3617,7 @@ app.get('/aluno/:id/meta-atual', async (req, res) => {
         }
 
         const progress = await getCurrentMetaProgressForStudent(aluno.user_code);
-<<<<<<< HEAD
-        // Contagem de presenças (sem ponderação) restrita ao período (start_date/end_date) da meta vigente.
-        return res.json({ ok: true, progress, presencasCount: progress.presencasCount });
-=======
         return res.json({ ok: true, progress });
->>>>>>> presencas-vs-meta-de-aula
     } catch (err) {
         return res.status(500).json({ ok: false, mensagem: 'Erro ao calcular meta atual: ' + err.message });
     }

@@ -5313,9 +5313,37 @@ function calcularAtributos(avaliacoes) {
     return scores;
 }
 
+/** Ordenações disponíveis no selectbox da listagem de atributos. */
+const ATRIBUTOS_SORT_MODES = ['overall', 'faixa', 'alfa_asc', 'alfa_desc', 'idade'];
+
+/** Compara dois alunos usando a cadeia de critérios de desempate da ordenação escolhida. */
+function compararAlunosAtributos(a, b, sortMode) {
+    const overallDesc = () => b.overall - a.overall;
+    const faixaDesc = () => b.belt_group_order_desc - a.belt_group_order_desc;
+    const alfaAsc = () => a.sort_key.localeCompare(b.sort_key);
+    const alfaDesc = () => b.sort_key.localeCompare(a.sort_key);
+    const idadeDesc = () => b.idade - a.idade;
+    const nascimentoAsc = () => a.birth_ymd.localeCompare(b.birth_ymd);
+
+    const cadeiasPorModo = {
+        overall: [overallDesc, faixaDesc, alfaAsc, idadeDesc, nascimentoAsc],
+        faixa: [faixaDesc, overallDesc, alfaAsc, idadeDesc, nascimentoAsc],
+        alfa_asc: [alfaAsc, overallDesc, faixaDesc, idadeDesc, nascimentoAsc],
+        alfa_desc: [alfaDesc, overallDesc, faixaDesc, idadeDesc, nascimentoAsc],
+        idade: [idadeDesc, nascimentoAsc, overallDesc, faixaDesc, alfaAsc]
+    };
+
+    const cadeia = cadeiasPorModo[sortMode] || cadeiasPorModo.overall;
+    for (const criterio of cadeia) {
+        const resultado = criterio();
+        if (resultado !== 0) return resultado;
+    }
+    return 0;
+}
+
 /** Lista todos os alunos STD ativos com seus ratings. */
 app.get('/atributos', async (req, res) => {
-    const forbidden = ensureAdminRoute(req, res);
+    const forbidden = ensureProfessorRoute(req, res);
     if (forbidden) return forbidden;
 
     const alunos = await Usuario.findAll({
@@ -5336,9 +5364,11 @@ app.get('/atributos', async (req, res) => {
     const lista = alunos.map(aluno => {
         const avs = mapaAvaliacoes[aluno.user_code] || [];
         const scores = calcularAtributos(avs);
+        const nome = `${aluno.first_name} ${aluno.last_name}`;
+        const birthParts = parseBirthDateParts(aluno.birth_date);
         return {
             user_code: aluno.user_code,
-            nome: `${aluno.first_name} ${aluno.last_name}`,
+            nome,
             foto: aluno.photo || '/uploads/users/default.jpg',
             faixaBadge: getBeltBadgeClass(aluno.actual_belt),
             totalAvaliacoes: avs.length,
@@ -5349,18 +5379,34 @@ app.get('/atributos', async (req, res) => {
             agilidade: scores.agilidade,
             ataque: scores.ataque,
             defesa: scores.defesa,
+            sort_key: normalizeNameSortKey(nome),
+            belt_group_order_desc: getBeltGroupOrderDesc(aluno.actual_belt),
+            idade: calculateAgeFromBirthDateParts(birthParts),
+            birth_ymd: buildYmdFromParts(birthParts) || '0000-00-00',
         };
-    }).sort((a, b) => b.overall - a.overall);
+    });
+
+    const searchTerm = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const searchKey = normalizeNameSortKey(searchTerm);
+    const listaFiltrada = searchKey ? lista.filter(item => item.sort_key.includes(searchKey)) : lista;
+
+    const sortModeSolicitado = ATRIBUTOS_SORT_MODES.includes(req.query.sort) ? req.query.sort : '';
+    const todosOverallZero = listaFiltrada.every(item => item.overall === 0);
+    const sortMode = sortModeSolicitado || (todosOverallZero ? 'alfa_asc' : 'overall');
+
+    listaFiltrada.sort((a, b) => compararAlunosAtributos(a, b, sortMode));
 
     return res.render('atributos', {
         titulo: 'Mapeamento de Atributos',
-        lista
+        lista: listaFiltrada,
+        sortMode: sortModeSolicitado,
+        searchTerm
     });
 });
 
 /** Perfil de atributos de um aluno específico. */
 app.get('/atributos/aluno/:user_code', async (req, res) => {
-    const forbidden = ensureAdminRoute(req, res);
+    const forbidden = ensureProfessorRoute(req, res);
     if (forbidden) return forbidden;
 
     const userCode = normalizeUserCode(req.params.user_code);
@@ -5420,7 +5466,7 @@ app.get('/atributos/aluno/:user_code', async (req, res) => {
 
 /** Registra ou atualiza avaliação do dia para um aluno. */
 app.post('/atributos/avaliar', async (req, res) => {
-    const forbidden = ensureAdminRoute(req, res);
+    const forbidden = ensureProfessorRoute(req, res);
     if (forbidden) return forbidden;
 
     const usuarioSessao = req.session.usuario;
@@ -5470,7 +5516,7 @@ app.post('/atributos/avaliar', async (req, res) => {
 
 /** Remove uma avaliação pelo ID. */
 app.delete('/atributos/avaliar/:id', async (req, res) => {
-    const forbidden = ensureAdminRoute(req, res);
+    const forbidden = ensureProfessorRoute(req, res);
     if (forbidden) return forbidden;
 
     const id = parseInt(req.params.id, 10);

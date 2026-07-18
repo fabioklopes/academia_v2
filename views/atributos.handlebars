@@ -6,6 +6,46 @@
         </div>
     </div>
 
+    <form id="atributosFiltroForm" method="GET" action="/atributos" class="d-flex flex-column flex-md-row align-items-md-end gap-2 mb-4">
+        <div class="flex-grow-1">
+            <label for="atributosBuscaInput" class="form-label small text-body-secondary mb-1">Buscar por nome</label>
+            <div class="input-group">
+                <input
+                    type="text"
+                    id="atributosBuscaInput"
+                    name="q"
+                    class="form-control"
+                    placeholder="Nome do aluno"
+                    value="{{searchTerm}}"
+                    autocomplete="off"
+                >
+                <button
+                    type="button"
+                    id="atributosBuscaClear"
+                    class="btn btn-outline-secondary d-none"
+                    title="Limpar pesquisa"
+                    aria-label="Limpar pesquisa"
+                >
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+                <button type="submit" class="btn btn-primary" title="Pesquisar" aria-label="Pesquisar">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <div>
+            <label for="atributosOrdenarPor" class="form-label small text-body-secondary mb-1">Ordenar por</label>
+            <select id="atributosOrdenarPor" name="sort" class="form-select form-select-sm">
+                <option value="" {{#if sortMode}}{{else}}selected{{/if}}>-- Ordenar por --</option>
+                <option value="overall" {{#if (eq sortMode "overall")}}selected{{/if}}>Maior pontuação (Overall)</option>
+                <option value="faixa" {{#if (eq sortMode "faixa")}}selected{{/if}}>Mais graduado</option>
+                <option value="alfa_asc" {{#if (eq sortMode "alfa_asc")}}selected{{/if}}>Ordem Alfabética (crescente)</option>
+                <option value="alfa_desc" {{#if (eq sortMode "alfa_desc")}}selected{{/if}}>Ordem Alfabética (decrescente)</option>
+                <option value="idade" {{#if (eq sortMode "idade")}}selected{{/if}}>Idade</option>
+            </select>
+        </div>
+    </form>
+
     {{#if lista}}
     <div class="row g-3">
         {{#each lista}}
@@ -84,7 +124,11 @@
     {{else}}
     <div class="text-center text-body-secondary py-5">
         <i class="fa-solid fa-user-slash fa-2x mb-3 d-block"></i>
+        {{#if searchTerm}}
+        Nenhum aluno encontrado para "{{searchTerm}}".
+        {{else}}
         Nenhum aluno ativo encontrado.
+        {{/if}}
     </div>
     {{/if}}
 </div>
@@ -132,3 +176,50 @@
         font-size: .65rem;
     }
 </style>
+
+<script>
+    (function () {
+        const form = document.getElementById('atributosFiltroForm');
+        const select = document.getElementById('atributosOrdenarPor');
+        const input = document.getElementById('atributosBuscaInput');
+        const clearBtn = document.getElementById('atributosBuscaClear');
+        if (!form) return;
+
+        function buildAtributosUrl() {
+            const params = new URLSearchParams();
+            const termo = input ? input.value.trim() : '';
+            if (termo) params.set('q', termo);
+            const ordenacao = select ? select.value : '';
+            if (ordenacao) params.set('sort', ordenacao);
+            const qs = params.toString();
+            return qs ? `/atributos?${qs}` : '/atributos';
+        }
+
+        function updateClearButton() {
+            if (!input || !clearBtn) return;
+            clearBtn.classList.toggle('d-none', input.value.trim() === '');
+        }
+
+        updateClearButton();
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            window.location.href = buildAtributosUrl();
+        });
+
+        if (select) {
+            select.addEventListener('change', () => {
+                window.location.href = buildAtributosUrl();
+            });
+        }
+
+        if (input && clearBtn) {
+            input.addEventListener('input', updateClearButton);
+            clearBtn.addEventListener('click', () => {
+                input.value = '';
+                updateClearButton();
+                window.location.href = buildAtributosUrl();
+            });
+        }
+    })();
+</script>

@@ -366,11 +366,27 @@
     }
     .cal-day-cell.has-presenca {
         cursor: pointer;
+    }
+    .cal-day-cell.status-pending {
         background: #fff9e6;
         border-color: #ffc107;
     }
-    .cal-day-cell.has-presenca:hover {
+    .cal-day-cell.status-pending:hover {
         background: #fff3cd;
+    }
+    .cal-day-cell.status-approved {
+        background: var(--bs-primary-bg-subtle);
+        border-color: var(--bs-primary);
+    }
+    .cal-day-cell.status-approved:hover {
+        filter: brightness(0.96);
+    }
+    .cal-day-cell.status-denied {
+        background: var(--bs-danger-bg-subtle);
+        border-color: var(--bs-danger);
+    }
+    .cal-day-cell.status-denied:hover {
+        filter: brightness(0.96);
     }
     .cal-day-cell.selected {
         background: var(--bs-primary-bg-subtle);
@@ -395,8 +411,10 @@
         font-size: 0.95rem;
         pointer-events: none;
     }
-    .cal-center-icon.info-icon   { color: #ffc107; margin-top: 4px; }
-    .cal-center-icon.check-icon  { color: var(--bs-primary); margin-top: 4px; }
+    .cal-center-icon.info-icon     { color: #ffc107; margin-top: 4px; }
+    .cal-center-icon.check-icon    { color: var(--bs-primary); margin-top: 4px; }
+    .cal-center-icon.approved-icon { color: var(--bs-primary); margin-top: 4px; }
+    .cal-center-icon.denied-icon   { color: var(--bs-danger); margin-top: 4px; }
 
     /* ── Modal list (inside calendar modal) ── */
     .modal-presenca-list {
@@ -713,11 +731,11 @@
         /* ── Dados do servidor ── */
         const rawData = JSON.parse(document.getElementById('presencasData').textContent || '[]');
 
-    // Estrutura de acesso rápido: date_iso → presença
+    // Estrutura de acesso rápido: date_iso → lista de presenças daquele dia (terça pode ter até 2: Gi e No-Gi)
     let presencasByDate = {};
     let presencasById   = {};
     rawData.forEach(p => {
-        presencasByDate[p.request_date_iso] = p;
+        (presencasByDate[p.request_date_iso] = presencasByDate[p.request_date_iso] || []).push(p);
         presencasById[p.id] = p;
     });
 
@@ -789,6 +807,13 @@
             <div class="col-12"><span class="fw-semibold text-body-secondary">Observação:</span> ${p.observation ? escHtml(p.observation) : '<span class="text-body-secondary"></span>'}</div>
         </div>`;
     }
+    function buildDetalheHtmlMulti(records) {
+        return records.map((p, idx) => `
+        <div class="${idx < records.length - 1 ? 'mb-3 pb-3 border-bottom' : ''}">
+            ${buildDetalheHtml(p)}
+            ${p.status === 'P' ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-danger btn-cancelar-inline" data-id="${p.id}"><i class="fa-solid fa-ban"></i> Cancelar Solicitação</button></div>` : ''}
+        </div>`).join('');
+    }
     function escHtml(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
@@ -796,12 +821,19 @@
         presencasByDate = {};
         presencasById   = {};
         allPresencas.forEach(p => {
-            const current = presencasByDate[p.request_date_iso];
-            if (!current || Number(p.id) > Number(current.id)) {
-                presencasByDate[p.request_date_iso] = p;
-            }
+            (presencasByDate[p.request_date_iso] = presencasByDate[p.request_date_iso] || []).push(p);
             presencasById[p.id] = p;
         });
+    }
+
+    /* ── Determina cor do ícone do dia a partir das presenças ativas (não canceladas) ── */
+    function statusModifierForActiveRecords(activeRecords) {
+        const total = activeRecords.length;
+        const countA = activeRecords.filter(p => p.status === 'A').length;
+        const countN = activeRecords.filter(p => p.status === 'N').length;
+        if (countA === total) return 'status-approved';
+        if (countN === total) return 'status-denied';
+        return 'status-pending';
     }
 
     /* ════════════════════════════════
@@ -848,18 +880,24 @@
 
             if (iso === td) cell.classList.add('today-mark');
 
-            const hasPres = !!presencasByDate[iso];
-            const hasActivePres = hasActivePresence(iso);
+            const dayRecords = presencasByDate[iso] || [];
+            const activeRecords = dayRecords.filter(p => p.status !== 'C');
+            const hasPres = dayRecords.length > 0;
+            const hasActivePres = activeRecords.length > 0;
             const isSel   = selectedDates.has(iso);
             const inRange = iso >= ld && iso <= td;
 
             if (hasPres) {
-                cell.classList.add('has-presenca');
+                const modifier = hasActivePres ? statusModifierForActiveRecords(activeRecords) : 'status-pending';
+                cell.classList.add('has-presenca', modifier);
+                const iconTag = { 'status-approved': 'fa-circle-check', 'status-denied': 'fa-circle-xmark', 'status-pending': 'fa-circle-info' }[modifier];
+                const iconColorClass = { 'status-approved': 'approved-icon', 'status-denied': 'denied-icon', 'status-pending': 'info-icon' }[modifier];
                 const icon = document.createElement('i');
-                icon.className = 'fa-solid fa-circle-info cal-center-icon info-icon';
+                icon.className = `fa-solid ${iconTag} cal-center-icon ${iconColorClass}`;
                 cell.appendChild(icon);
                 if (hasActivePres) {
-                    cell.addEventListener('click', () => openFromCal(presencasByDate[iso].id));
+                    const ids = activeRecords.map(p => p.id);
+                    cell.addEventListener('click', () => openFromCal(ids));
                 } else {
                     cell.addEventListener('click', () => addSelectedDate(iso));
                 }
@@ -970,26 +1008,38 @@
     /* ════════════════════════════════
        ABRIR DETALHE (do calendário)
     ════════════════════════════════ */
-    function openFromCal(id) {
-        const p = presencasById[id];
-        if (!p) return;
-        document.getElementById('dcStatus').textContent = p.status_label;
-        document.getElementById('dcStatus').className = 'fw-bold ' + p.status_class;
-        document.getElementById('dcDetalheConteudo').innerHTML = buildDetalheHtml(p);
+    function openFromCal(ids) {
+        const idList = Array.isArray(ids) ? ids : [ids];
+        const records = idList.map(id => presencasById[id]).filter(Boolean);
+        if (records.length === 0) return;
+
         const btn = document.getElementById('dcBtnCancelar');
         const btnRe = document.getElementById('dcBtnReSolicitar');
-        if (p.status === 'P') {
-            btn.classList.remove('d-none');
-            btn.dataset.id = id;
-            btnRe.classList.add('d-none');
-        } else {
-            btn.classList.add('d-none');
-            if (p.status === 'C') {
-                btnRe.classList.remove('d-none');
-                btnRe.dataset.date = p.request_date_iso;
-            } else {
+
+        if (records.length === 1) {
+            const p = records[0];
+            document.getElementById('dcStatus').textContent = p.status_label;
+            document.getElementById('dcStatus').className = 'fw-bold ' + p.status_class;
+            document.getElementById('dcDetalheConteudo').innerHTML = buildDetalheHtml(p);
+            if (p.status === 'P') {
+                btn.classList.remove('d-none');
+                btn.dataset.id = p.id;
                 btnRe.classList.add('d-none');
+            } else {
+                btn.classList.add('d-none');
+                if (p.status === 'C') {
+                    btnRe.classList.remove('d-none');
+                    btnRe.dataset.date = p.request_date_iso;
+                } else {
+                    btnRe.classList.add('d-none');
+                }
             }
+        } else {
+            document.getElementById('dcStatus').textContent = '';
+            document.getElementById('dcStatus').className = 'fw-bold';
+            document.getElementById('dcDetalheConteudo').innerHTML = buildDetalheHtmlMulti(records);
+            btn.classList.add('d-none');
+            btnRe.classList.add('d-none');
         }
 
         // Esconde modal principal e mostra detalhe
@@ -1059,6 +1109,26 @@
         addSelectedDate(iso);
         const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheCal'));
         if (bsModal) bsModal.hide();
+    });
+
+    /* ── Cancelar inline (quando o modal do calendário exibe 2 solicitações do mesmo dia) ── */
+    document.getElementById('dcDetalheConteudo').addEventListener('click', async (e) => {
+        const btnInline = e.target.closest('.btn-cancelar-inline');
+        if (!btnInline) return;
+        const id = btnInline.dataset.id;
+        await cancelarPresenca(id, () => {
+            const idx = allPresencas.findIndex(x => String(x.id) === String(id));
+            if (idx >= 0) {
+                allPresencas[idx].status = 'C';
+                allPresencas[idx].status_label = 'Cancelada';
+                allPresencas[idx].status_class = 'text-secondary';
+            }
+            shouldRefreshOnCalendarClose = true;
+            syncIndexes();
+            const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheCal'));
+            if (bsModal) bsModal.hide();
+            renderCalendar();
+        });
     });
 
     async function cancelarPresenca(id, onSuccess) {

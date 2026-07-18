@@ -17,16 +17,16 @@
             </a>
 
             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPeriodoPresencas">
-                <i class="fa-solid fa-filter"></i> Período
+                <i class="fa-solid fa-calendar-days"></i> 
             </button>
 
             <a class="btn btn-outline-danger {{#unless hasPeriodo}}disabled{{/unless}}"
                href="/relatorios/presencas/download?format=pdf{{downloadQuery}}">
-                <i class="fa-solid fa-file-pdf"></i> PDF
+                <i class="fa-solid fa-file-pdf"></i> 
             </a>
             <a class="btn btn-outline-success {{#unless hasPeriodo}}disabled{{/unless}}"
                href="/relatorios/presencas/download?format=xlsx{{downloadQuery}}">
-                <i class="fa-solid fa-file-excel"></i> XLSX
+                <i class="fa-solid fa-file-excel"></i> 
             </a>
         </div>
     </div>
@@ -46,8 +46,8 @@
                 <div class="d-flex align-items-center gap-2">
                     <label for="sortMode" class="form-label mb-0 small text-body-secondary">Ordenar por:</label>
                     <select class="form-select form-select-sm" id="sortMode" style="max-width: 260px;">
-                        <option value="nome_asc" selected>Nome (A-Z)</option>
-                        <option value="presenca_desc">Presenças (maior - menor)</option>
+                        <option value="nome_asc">Nome (A-Z)</option>
+                        <option value="presenca_desc" selected>Presenças (maior - menor)</option>
                         <option value="presenca_asc">Presenças (menor - maior)</option>
                     </select>
                 </div>
@@ -134,7 +134,10 @@
                                     </button>
                                     {{/each}}
                                 {{else}}
-                                    <div class="text-body-secondary small">Nenhuma meta cadastrada.</div>
+                                    <div class="text-body-secondary small mb-2">Nenhuma meta cadastrada.</div>
+                                    <a class="btn btn-primary btn-sm" href="/metasdeaula?returnTo=relatorios-presencas">
+                                        <i class="fa-solid fa-plus"></i> Criar meta de aula
+                                    </a>
                                 {{/if}}
                             </div>
                         </div>
@@ -268,6 +271,7 @@
 
             if (modalEl) {
                 modalEl.addEventListener('show.bs.modal', () => {
+                    if (modalEl.dataset.calReturning) return;
                     if (periodoWarn) periodoWarn.style.display = 'none';
                     if (tipoEl) tipoEl.value = '';
                     hideAllBlocks();

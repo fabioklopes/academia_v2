@@ -93,9 +93,6 @@ async function getTurmasDisponiveisParaMensagem(usuarioSessao) {
     }
 
     const where = { active: 'Y' };
-    if (usuarioSessao.role !== 'ADM') {
-        where.created_by = usuarioSessao.user_code;
-    }
 
     const turmas = await Turma.findAll({
         where,

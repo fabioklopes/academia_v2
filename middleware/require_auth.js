@@ -6,6 +6,7 @@
 /** Lista de caminhos que qualquer pessoa pode acessar sem estar logada. */
 function isPublicRoute(pathname) {
     const publicRoutes = new Set([
+        '/login',
         '/auth/login',
         '/auth/verify',
         '/auth/forgot-password',
@@ -14,7 +15,9 @@ function isPublicRoute(pathname) {
         '/aluno/novo',
         '/aluno/cadastrar',
         '/aluno/verificar-titular',
-        '/ignition'
+        '/ignition',
+        '/faq',
+        '/contato'
     ]);
 
     return publicRoutes.has(pathname) || pathname.startsWith('/uploads/');

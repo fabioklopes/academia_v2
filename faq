@@ -1,0 +1,17 @@
+> Não consigo acessar o meu cadastro
+Tente utilizar o link "Esqueci minha senha", lá na página principal. Por lá, você vai informar o e-mail que estava usando para que a aplicação envie um link. Se este e-mail estiver cadastrado no sistema, o link chegará e você poderá cadastrar uma nova senha.
+
+> Estou usando o Esqueci minha senha não está mandando nada
+Provavelmente são 3 fatores que podem estar impedindo esta função:
+*1.* Seu e-mail está incorreto e por isso a aplicação não conseguirá mandar o link para você;
+*2.* Você ainda não fez o seu cadastro na nova versão da aplicação;
+*3.* Caso já tenha feito o cadastro, ele ainda está pendente de aprovação por um dos professores. Neste caso, entre em contato com um dos professores para verificar a possibilidade da aprovação da solicitação de cadastro.
+
+> Minhas presenças sumiram
+Sim! E nós sabemos disso. Lá no início, a versão 1.0 foi criada apenas para adaptação dos alunos ao novo sistema. Já nesta versão mais moderna e atualizada (versão 2.0) as presenças serão contabilizadas de formas diferentes e não serão acumulativas. Ou seja, não vai somar com presenças anteriores, mas sim uma média por Metas de Aulas.
+
+> Cadastro de Dependentes
+Se você está tendo problemas ao cadastrar seu(s) dependente(s), mas no momento da validação do e-mail titular, o sistema não está localizando seu cadastro, alguns fatores podem estar relacionados a isso:
+*1.* Seu cadastro não foi realizado ainda: para isso, um titular precisa estar cadastrado e devidamente aprovado no sistema por um professor;
+*2.* Você precisa usar o mesmo e-mail do titular para o dependente. Ou seja, no momento da validação da conta responsável, vocẽ deverá usar o mesmo e-mail que cadastrou para você mesmo;
+*3.* No campo "Senha" e "Repita a sua senha" use a mesma senha do seu cadastro. Só então o(s) seu(s) dependente(s) aparecerá(ão) para você, no seu Menu de Aluno.

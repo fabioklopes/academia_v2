@@ -273,8 +273,9 @@ function sanitizeErrorPayload(body, statusCode, isProduction) {
         return body;
     }
 
-    const code = normalizeHttpStatusCode(statusCode);
-    const vm = getErrorViewModel(code);
+    const rawCode = Number(statusCode);
+    const isErrorResponse = Number.isInteger(rawCode) && rawCode >= 400;
+    const vm = getErrorViewModel(isErrorResponse ? rawCode : 500);
     const clone = { ...body };
     let changed = false;
 
@@ -288,7 +289,7 @@ function sanitizeErrorPayload(body, statusCode, isProduction) {
             continue;
         }
 
-        const shouldReplace = code >= 500
+        const shouldReplace = (isErrorResponse && rawCode >= 500)
             || isTechnicalErrorMessage(value)
             || (typeof value === 'string' && /erro\s+(ao|interno|inesperado)/i.test(value) && isTechnicalErrorMessage(value.replace(/^[^:]*:\s*/i, '')));
 
@@ -422,7 +423,7 @@ function createClientErrorGuardMiddleware(options) {
     return function clientErrorGuard(req, res, next) {
         const originalJson = res.json.bind(res);
         res.json = function guardedJson(body) {
-            const statusCode = res.statusCode && res.statusCode >= 400 ? res.statusCode : 500;
+            const statusCode = res.statusCode || 200;
             return originalJson(sanitizeErrorPayload(body, statusCode, true));
         };
 

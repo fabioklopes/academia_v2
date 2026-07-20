@@ -41,6 +41,18 @@ describe('middleware/http_errors', () => {
         expect(sanitized.mensagem).toBe(getErrorViewModel(500).message);
     });
 
+    test('sanitizeErrorPayload preserva mensagem de sucesso (status 200)', () => {
+        const body = { ok: true, mensagem: 'Solicitação aprovada com sucesso.' };
+        const sanitized = sanitizeErrorPayload(body, 200, true);
+        expect(sanitized.mensagem).toBe('Solicitação aprovada com sucesso.');
+    });
+
+    test('sanitizeErrorPayload preserva mensagem de erro de negócio (4xx)', () => {
+        const body = { ok: false, mensagem: 'ID inválido.' };
+        const sanitized = sanitizeErrorPayload(body, 400, true);
+        expect(sanitized.mensagem).toBe('ID inválido.');
+    });
+
     test('sanitizeRedirectUrl substitui query técnica', () => {
         const url = '/auth/login?erro=' + encodeURIComponent('Erro: Sequelize timeout at node_modules/foo');
         const safe = sanitizeRedirectUrl(url, true);
@@ -62,6 +74,10 @@ describe('middleware/http_errors', () => {
                 const err = new Error('Detalhe interno do banco');
                 err.statusCode = 500;
                 next(err);
+            });
+
+            app.post('/presenca-aprovar', (_req, res) => {
+                res.json({ ok: true, mensagem: 'Solicitação aprovada com sucesso.' });
             });
 
             app.use(createNotFoundMiddleware({ isProduction }));
@@ -90,6 +106,14 @@ describe('middleware/http_errors', () => {
             const res = await request(app).get('/rota-inexistente').set('Accept', 'application/json');
             expect(res.status).toBe(404);
             expect(res.body.message).toBe(getErrorViewModel(404).message);
+        });
+
+        test('guard em produção não substitui mensagem de sucesso (regressão: aprovação de presença)', async () => {
+            const app = buildApp({ isProduction: true });
+            const res = await request(app).post('/presenca-aprovar');
+            expect(res.status).toBe(200);
+            expect(res.body.ok).toBe(true);
+            expect(res.body.mensagem).toBe('Solicitação aprovada com sucesso.');
         });
     });
 });

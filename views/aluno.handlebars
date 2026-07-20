@@ -529,6 +529,9 @@
                         <label class="form-check-label" for="alunoStatusSwitch" id="alunoStatusLabel">Ativo</label>
                     </div>
                 </div>
+                <div class="mb-3 text-center d-none" id="alunoRecusarWrap">
+                    <a href="#" class="btn btn-outline-danger" id="btnAlunoRecusar">Recusar cadastro</a>
+                </div>
                 {{/if}}
                 <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Fechar</button>
             </div>
@@ -752,19 +755,14 @@
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
 
-<<<<<<< HEAD
             // Presenças (sem ponderação) dentro do período da meta de aula vigente do aluno
-=======
-            // Buscar total de presenças aprovadas na meta de aula vigente (0 quando não há meta)
->>>>>>> presencas-vs-meta-de-aula
             if (alunoId) {
                 try {
                     const res = await fetch(`/aluno/${alunoId}/meta-atual`, { method: 'GET' });
                     if (res.ok) {
                         const payload = await res.json();
-<<<<<<< HEAD
                         const progress = payload ? payload.progress : null;
-                        const total = payload ? payload.presencasCount : null;
+                        const total = progress ? progress.presencasCount : null;
                         setText('modalAlunoPresencas', Number.isFinite(total) ? String(total) : '-');
 
                         const toBr = (iso) => {
@@ -781,13 +779,6 @@
                             } else {
                                 periodoEl.textContent = 'Sem meta de aula vigente';
                             }
-=======
-                        if (payload && payload.progress) {
-                            const total = payload.progress.hasMeta ? payload.progress.presencasNaMeta : 0;
-                            setText('modalAlunoPresencas', String(total));
-                        } else {
-                            setText('modalAlunoPresencas', '-');
->>>>>>> presencas-vs-meta-de-aula
                         }
                     }
                 } catch (_e) {
@@ -864,6 +855,18 @@
                     switchContainer.classList.add('text-danger');
                 } else {
                     statusLabel.textContent = 'Pendente';
+                }
+            }
+
+            const recusarWrap = document.getElementById('alunoRecusarWrap');
+            const btnRecusar = document.getElementById('btnAlunoRecusar');
+            if (recusarWrap && btnRecusar) {
+                if (statusCode === 'P' && alunoId) {
+                    recusarWrap.classList.remove('d-none');
+                    btnRecusar.dataset.alunoId = alunoId;
+                } else {
+                    recusarWrap.classList.add('d-none');
+                    delete btnRecusar.dataset.alunoId;
                 }
             }
 
@@ -1001,6 +1004,22 @@
                     alert('Erro ao atualizar status do aluno: ' + error.message);
                     this.checked = originalStatus === 'A';
                 }
+            });
+        }
+
+        // Botão "Recusar cadastro" (somente para cadastros pendentes)
+        const btnAlunoRecusar = document.getElementById('btnAlunoRecusar');
+        if (btnAlunoRecusar) {
+            btnAlunoRecusar.addEventListener('click', function(e) {
+                e.preventDefault();
+                const id = this.dataset.alunoId;
+                if (!id) {
+                    return;
+                }
+                if (!confirm('Tem certeza que deseja recusar este cadastro? Os dados informados serão removidos permanentemente.')) {
+                    return;
+                }
+                window.location.href = `/aluno/status/negar/${id}`;
             });
         }
 

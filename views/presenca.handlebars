@@ -183,21 +183,44 @@
             if (!alertEl) {
                 alertEl = document.createElement('div');
                 alertEl.id = 'presencaProAlert';
-                alertEl.className = 'alert alert-autodismiss';
                 alertEl.setAttribute('role', 'alert');
-                const h1 = document.querySelector('h1.mb-4');
+                const h1 = document.querySelector('h1');
                 if (h1) h1.insertAdjacentElement('afterend', alertEl);
                 else document.body.prepend(alertEl);
             }
+
+            // elemento criado após o DOMContentLoaded: auto-dismiss.js não o alcança,
+            // então o temporizador de remoção é reaplicado manualmente aqui.
+            if (alertEl._autoDismissInterval) {
+                clearInterval(alertEl._autoDismissInterval);
+                alertEl._autoDismissInterval = null;
+            }
+
             const icon = tipo === 'primary'
                 ? '<i class="fa-solid fa-circle-check"></i>'
                 : '<i class="fa-solid fa-circle-xmark"></i>';
             alertEl.className = `alert alert-${tipo} alert-autodismiss`;
+            alertEl.style.position = 'relative';
+            alertEl.style.opacity = '1';
             alertEl.innerHTML = `${icon} ${msg}`;
-            // acionar auto-dismiss se disponível
-            if (window.bootstrap && bootstrap.Alert) {
-                // re-inicializa
-            }
+
+            let count = 5;
+            const badge = document.createElement('span');
+            badge.textContent = count;
+            badge.style.cssText = 'position:absolute;bottom:4px;right:8px;font-size:0.65rem;opacity:0.55;line-height:1;font-variant-numeric:tabular-nums;';
+            alertEl.appendChild(badge);
+
+            alertEl._autoDismissInterval = setInterval(() => {
+                count--;
+                badge.textContent = count;
+                if (count <= 0) {
+                    clearInterval(alertEl._autoDismissInterval);
+                    alertEl._autoDismissInterval = null;
+                    alertEl.style.transition = 'opacity 0.4s';
+                    alertEl.style.opacity = '0';
+                    setTimeout(() => alertEl.remove(), 400);
+                }
+            }, 1000);
         }
 
         /* ── abrir modal de detalhe ao clicar na linha ── */

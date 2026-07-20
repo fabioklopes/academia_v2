@@ -775,13 +775,6 @@ function buildBirthdayLoginModalData(usuario, todayDate = new Date()) {
     };
 }
 
-function formatTimestampForFile(dateValue) {
-    const date = new Date(dateValue);
-    const pad = (n) => String(n).padStart(2, '0');
-
-    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-}
-
 // ============================================================================
 // FOTOS DE USUÁRIO — upload, redimensionamento e limpeza
 // ============================================================================
@@ -800,27 +793,31 @@ async function optimizeImageTo1MB(inputPath, outputPath) {
     return buffer.length;
 }
 
-async function removeExistingUserImages(userId) {
-    const idPrefix = `${userId}_`;
-    const files = await fs.promises.readdir(uploadsDir);
+/** Apaga a foto final atual do usuário no disco, se houver. */
+async function removeExistingUserImage(usuario) {
+    if (isTempPhotoPath(usuario.photo)) {
+        return;
+    }
 
-    const filesToDelete = files.filter((fileName) => fileName.startsWith(idPrefix));
+    const fileName = getFileNameFromPhotoPath(usuario.photo);
+    if (!fileName || fileName === 'default.jpg') {
+        return;
+    }
 
-    await Promise.all(filesToDelete.map(async (fileName) => {
-        const filePath = path.join(uploadsDir, fileName);
+    const filePath = path.join(uploadsDir, fileName);
+    if (fs.existsSync(filePath)) {
         await fs.promises.unlink(filePath);
-    }));
+    }
 }
 
-/** Apaga fotos antigas do usuário e salva a nova foto otimizada no disco. */
+/** Salva a foto definitiva do usuário no disco, nomeada pelo seu user_code. */
 async function replaceUserPhoto(usuario, tempFileName) {
-    const timestamp = formatTimestampForFile(new Date());
-    const finalFileName = `${usuario.id}_${timestamp}.jpg`;
+    const finalFileName = `${usuario.user_code.toLowerCase()}.jpg`;
     const tempFilePath = path.join(uploadsDir, tempFileName);
     const finalFilePath = path.join(uploadsDir, finalFileName);
 
     try {
-        await removeExistingUserImages(usuario.id);
+        await removeExistingUserImage(usuario);
         const fileSize = await optimizeImageTo1MB(tempFilePath, finalFilePath);
 
         if (tempFilePath !== finalFilePath && fs.existsSync(tempFilePath)) {
@@ -2991,7 +2988,10 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             zubon_size: zubonCode,
             obi_size: obiCode,
             responsible_id: responsibleId || null,
-            class_code: classCode
+            class_code: classCode,
+            // Foto já entra no create: evita que o registro fique com o default.jpg do model
+            // até uma segunda gravação (e persistindo com default.jpg caso ela falhasse).
+            photo: `/uploads/users/${req.file.filename}`
         });
 
         await TurmaAluno.findOrCreate({
@@ -3006,12 +3006,6 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                 active: 'Y'
             }
         });
-
-        if (req.file) {
-            // Cadastro pendente mantém foto temporária até aprovação.
-            usuario.photo = `/uploads/users/${req.file.filename}`;
-            await usuario.save();
-        }
 
         // Armazenar mensagem de sucesso na sessão com indicador de redirecionamento
         req.session.mensagem = isDependent ? 'Cadastro de dependente enviado com sucesso.' : 'Aluno criado com sucesso.';
@@ -3453,7 +3447,6 @@ app.post('/aluno/excluir/:id', async (req, res) => {
             });
         }
 
-        const userIdForFiles = aluno.id;
         const photoPath = aluno.photo;
 
         await sequelize.transaction(async (transaction) => {
@@ -3461,16 +3454,12 @@ app.post('/aluno/excluir/:id', async (req, res) => {
         });
 
         try {
-            if (isTempPhotoPath(photoPath)) {
-                const fileName = getFileNameFromPhotoPath(photoPath);
-                if (fileName) {
-                    const filePath = path.join(uploadsDir, fileName);
-                    if (fs.existsSync(filePath)) {
-                        await fs.promises.unlink(filePath);
-                    }
+            const fileName = getFileNameFromPhotoPath(photoPath);
+            if (fileName && fileName !== 'default.jpg') {
+                const filePath = path.join(uploadsDir, fileName);
+                if (fs.existsSync(filePath)) {
+                    await fs.promises.unlink(filePath);
                 }
-            } else {
-                await removeExistingUserImages(userIdForFiles);
             }
         } catch (fileErr) {
             console.error('Erro ao remover arquivos de foto do aluno excluído:', fileErr.message);

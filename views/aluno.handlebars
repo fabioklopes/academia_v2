@@ -872,7 +872,7 @@
 
             const excluirWrap = document.getElementById('alunoExcluirWrap');
             if (excluirWrap) {
-                excluirWrap.classList.toggle('d-none', roleCode !== 'STD');
+                excluirWrap.classList.toggle('d-none', roleCode !== 'STD' || statusCode === 'P');
             }
 
             const modalBeltImage = document.getElementById('modalAlunoBeltImage');

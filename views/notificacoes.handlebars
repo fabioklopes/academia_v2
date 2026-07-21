@@ -36,7 +36,7 @@
                     <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
                         <div>
                             <span class="badge text-bg-{{kindBadge}} me-1">
-                                {{#if (eq kind 'PRESENCA_APROVADA')}}Presença aprovada{{else}}{{#if (eq kind 'PRESENCA_NEGADA')}}Presença negada{{else}}Sistema{{/if}}{{/if}}
+                                {{#if (eq kind 'PRESENCA_APROVADA')}}Presença aprovada{{else}}{{#if (eq kind 'PRESENCA_NEGADA')}}Presença negada{{else}}{{#if (eq kind 'AVATAR_APROVADO')}}Avatar aprovado{{else}}{{#if (eq kind 'AVATAR_NEGADO')}}Avatar negado{{else}}Sistema{{/if}}{{/if}}{{/if}}{{/if}}
                             </span>
                             {{#if isUnread}}<span class="badge text-bg-primary">Nova</span>{{/if}}
                             <h2 class="h6 mt-2 mb-1">{{title}}</h2>

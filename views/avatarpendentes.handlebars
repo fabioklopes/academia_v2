@@ -1,0 +1,220 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Trocas de Avatar Pendentes</h1>
+</div>
+
+<style>
+    .avatar-pend-row {
+        cursor: pointer;
+    }
+
+    .avatar-pend-row:hover td {
+        background-color: var(--bs-primary-bg-subtle);
+    }
+
+    .avatar-pend-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid var(--bs-border-color-translucent);
+    }
+
+    .avatar-pend-avatar-lg {
+        width: 140px;
+        height: 140px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 2px solid var(--bs-border-color-translucent);
+    }
+</style>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Aluno</th>
+            <th>Solicitado em</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#if solicitacoes.length}}
+            {{#each solicitacoes}}
+            <tr
+                class="avatar-pend-row"
+                data-id="{{id}}"
+                data-nome="{{aluno_nome}}"
+                data-foto-atual="{{aluno_photo_atual}}"
+                data-foto-nova="{{aluno_photo_nova}}"
+                data-data="{{createdAtLabel}}"
+            >
+                <td data-label="Aluno">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="{{aluno_photo_atual}}" alt="Avatar atual de {{aluno_nome}}" class="avatar-pend-avatar">
+                        <span>{{aluno_nome}}</span>
+                    </div>
+                </td>
+                <td data-label="Solicitado em">{{createdAtLabel}}</td>
+            </tr>
+            {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="2" class="text-center text-body-secondary py-4">Nenhuma solicitação pendente no momento.</td>
+            </tr>
+        {{/if}}
+    </tbody>
+</table>
+
+<div class="modal fade" id="modalDetalheAvatarPro" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalDetalheAvatarProLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDetalheAvatarProLabel">Solicitação de Troca de Avatar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <h5 class="text-center mb-3"><span id="avatarProDetalheNome">-</span></h5>
+                <div class="row text-center g-3">
+                    <div class="col-6">
+                        <p class="small text-body-secondary mb-1">Foto atual</p>
+                        <img id="avatarProDetalheAtual" src="/uploads/users/default.jpg" alt="Avatar atual" class="avatar-pend-avatar-lg">
+                    </div>
+                    <div class="col-6">
+                        <p class="small text-body-secondary mb-1">Foto nova</p>
+                        <img id="avatarProDetalheNova" src="/uploads/users/default.jpg" alt="Avatar novo" class="avatar-pend-avatar-lg">
+                    </div>
+                </div>
+                <p class="small text-body-secondary text-center mt-3 mb-0">Solicitado em <span id="avatarProDetalheData">-</span></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" id="avatarProBtnNegar" class="btn btn-danger" data-id="">
+                    <i class="fa-solid fa-xmark"></i> Negar
+                </button>
+                <button type="button" id="avatarProBtnAprovar" class="btn btn-success" data-id="">
+                    <i class="fa-solid fa-check"></i> Aprovar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+        const detalheModalEl = document.getElementById('modalDetalheAvatarPro');
+        if (!detalheModalEl) return;
+
+        const detalheNome = document.getElementById('avatarProDetalheNome');
+        const detalheAtual = document.getElementById('avatarProDetalheAtual');
+        const detalheNova = document.getElementById('avatarProDetalheNova');
+        const detalheData = document.getElementById('avatarProDetalheData');
+        const btnAprovar = document.getElementById('avatarProBtnAprovar');
+        const btnNegar = document.getElementById('avatarProBtnNegar');
+
+        function showAlert(msg, tipo) {
+            let alertEl = document.getElementById('avatarProAlert');
+            if (!alertEl) {
+                alertEl = document.createElement('div');
+                alertEl.id = 'avatarProAlert';
+                alertEl.setAttribute('role', 'alert');
+                const h1 = document.querySelector('h1');
+                if (h1) h1.insertAdjacentElement('afterend', alertEl);
+                else document.body.prepend(alertEl);
+            }
+
+            if (alertEl._autoDismissInterval) {
+                clearInterval(alertEl._autoDismissInterval);
+                alertEl._autoDismissInterval = null;
+            }
+
+            const icon = tipo === 'primary'
+                ? '<i class="fa-solid fa-circle-check"></i>'
+                : '<i class="fa-solid fa-circle-xmark"></i>';
+            alertEl.className = `alert alert-${tipo} alert-autodismiss`;
+            alertEl.style.position = 'relative';
+            alertEl.style.opacity = '1';
+            alertEl.innerHTML = `${icon} ${msg}`;
+
+            let count = 5;
+            const badge = document.createElement('span');
+            badge.textContent = count;
+            badge.style.cssText = 'position:absolute;bottom:4px;right:8px;font-size:0.65rem;opacity:0.55;line-height:1;font-variant-numeric:tabular-nums;';
+            alertEl.appendChild(badge);
+
+            alertEl._autoDismissInterval = setInterval(() => {
+                count--;
+                badge.textContent = count;
+                if (count <= 0) {
+                    clearInterval(alertEl._autoDismissInterval);
+                    alertEl._autoDismissInterval = null;
+                    alertEl.style.transition = 'opacity 0.4s';
+                    alertEl.style.opacity = '0';
+                    setTimeout(() => alertEl.remove(), 400);
+                }
+            }, 1000);
+        }
+
+        document.querySelectorAll('.avatar-pend-row').forEach((row) => {
+            row.addEventListener('click', () => {
+                if (!window.bootstrap) return;
+
+                const id = row.getAttribute('data-id');
+                const nome = row.getAttribute('data-nome') || '-';
+                const fotoAtual = row.getAttribute('data-foto-atual') || '/uploads/users/default.jpg';
+                const fotoNova = row.getAttribute('data-foto-nova') || '/uploads/users/default.jpg';
+                const data = row.getAttribute('data-data') || '-';
+
+                detalheNome.textContent = nome;
+                detalheAtual.src = fotoAtual;
+                detalheNova.src = fotoNova;
+                detalheData.textContent = data;
+
+                btnAprovar.dataset.id = id;
+                btnNegar.dataset.id = id;
+
+                bootstrap.Modal.getOrCreateInstance(detalheModalEl).show();
+            });
+        });
+
+        btnAprovar.addEventListener('click', async () => {
+            const id = btnAprovar.dataset.id;
+            if (!id) return;
+            btnAprovar.disabled = true;
+            try {
+                const res = await fetch(`/avatar-pendentes/${id}/aprovar`, { method: 'POST' });
+                const data = await res.json();
+                bootstrap.Modal.getOrCreateInstance(detalheModalEl).hide();
+                showAlert(data.mensagem || (data.ok ? 'Aprovado.' : 'Erro.'), data.ok ? 'primary' : 'danger');
+                if (data.ok) setTimeout(() => window.location.reload(), 800);
+            } catch (e) {
+                showAlert('Erro de comunicação: ' + e.message, 'danger');
+            } finally {
+                btnAprovar.disabled = false;
+            }
+        });
+
+        btnNegar.addEventListener('click', async () => {
+            const id = btnNegar.dataset.id;
+            if (!id) return;
+            if (!confirm('Confirma a negação desta solicitação de troca de avatar? A foto atual do aluno será mantida.')) return;
+            btnNegar.disabled = true;
+            try {
+                const res = await fetch(`/avatar-pendentes/${id}/negar`, { method: 'POST' });
+                const data = await res.json();
+                bootstrap.Modal.getOrCreateInstance(detalheModalEl).hide();
+                showAlert(data.mensagem || (data.ok ? 'Negado.' : 'Erro.'), data.ok ? 'danger' : 'danger');
+                if (data.ok) setTimeout(() => window.location.reload(), 800);
+            } catch (e) {
+                showAlert('Erro de comunicação: ' + e.message, 'danger');
+            } finally {
+                btnNegar.disabled = false;
+            }
+        });
+    });
+})();
+</script>

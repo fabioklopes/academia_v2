@@ -45,6 +45,7 @@ const MetaAulaTurma = require('./models/MetaAulaTurma');
 const AppActivityLog = require('./models/AppActivityLog');
 const Notificacao = require('./models/Notificacao');
 const AtributoAvaliacao = require('./models/AtributoAvaliacao');
+const AvatarChangeRequest = require('./models/AvatarChangeRequest');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -967,11 +968,13 @@ app.get('/dashboard', async (req, res) => {
             const pendingPresencaCount = await Presenca.count({
                 where: { status: 'P' }
             });
+            const pendingAvatarCount = await AvatarChangeRequest.count();
 
             return res.render('dashboardprofessor', {
                 birthdayWidget,
                 pendingStudentCount,
-                pendingPresencaCount
+                pendingPresencaCount,
+                pendingAvatarCount
             });
         }
 
@@ -991,6 +994,7 @@ app.get('/dashboard', async (req, res) => {
             const pendingPresencaCount = await Presenca.count({
                 where: { status: 'P' }
             });
+            const pendingAvatarCount = await AvatarChangeRequest.count();
 
             return res.render('dashboardprofessor', {
                 birthdayWidget: {
@@ -999,7 +1003,8 @@ app.get('/dashboard', async (req, res) => {
                     birthdays: []
                 },
                 pendingStudentCount,
-                pendingPresencaCount
+                pendingPresencaCount,
+                pendingAvatarCount
             });
         }
 
@@ -2686,6 +2691,76 @@ app.post('/meuperfil/confirmar-email', requireMeuPerfilSession, async (req, res)
         console.error(err);
         return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao confirmar e-mail.' });
     }
+});
+
+/** Meu Perfil: troca de avatar. PRO/ADM aplicam na hora; STD entra em fila de aprovação. */
+app.post('/meuperfil/avatar', requireMeuPerfilSession, (req, res) => {
+    upload.single('photo')(req, res, async (multerErr) => {
+        if (multerErr) {
+            const mensagem = multerErr.code === 'LIMIT_FILE_SIZE'
+                ? 'A imagem deve ter no máximo 10 MB.'
+                : 'Falha ao enviar a imagem.';
+            return res.status(400).json({ ok: false, mensagem });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ ok: false, mensagem: 'Selecione uma imagem.' });
+        }
+
+        const tempFilePath = path.join(uploadsDir, req.file.filename);
+
+        try {
+            const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            if (!allowedMimeTypes.includes(req.file.mimetype)) {
+                await fs.promises.unlink(tempFilePath);
+                return res.status(400).json({ ok: false, mensagem: 'Formatos permitidos: JPG, PNG ou GIF.' });
+            }
+
+            const metadata = await sharp(tempFilePath).metadata();
+            if (!metadata.width || !metadata.height || metadata.width < 200 || metadata.height < 200) {
+                await fs.promises.unlink(tempFilePath);
+                return res.status(400).json({ ok: false, mensagem: 'A imagem deve ter no mínimo 200x200 pixels.' });
+            }
+
+            const profileUserId = getEffectiveProfileUserId(req);
+            const usuario = await Usuario.findByPk(profileUserId);
+            if (!usuario) {
+                await fs.promises.unlink(tempFilePath);
+                return res.status(404).json({ ok: false, mensagem: 'Usuário não encontrado.' });
+            }
+
+            if (hasProfessorAccess(usuario)) {
+                await replaceUserPhoto(usuario, req.file.filename);
+                return res.json({ ok: true, mensagem: 'Avatar atualizado com sucesso.', tipo: 'success' });
+            }
+
+            const pendente = await AvatarChangeRequest.findOne({ where: { user_code: usuario.user_code } });
+            if (pendente) {
+                const oldTempPath = path.join(uploadsDir, pendente.temp_photo_filename);
+                if (fs.existsSync(oldTempPath)) {
+                    await fs.promises.unlink(oldTempPath);
+                }
+                await pendente.destroy();
+            }
+
+            await AvatarChangeRequest.create({
+                user_code: usuario.user_code,
+                temp_photo_filename: req.file.filename
+            });
+
+            return res.json({
+                ok: true,
+                mensagem: 'Sua nova foto foi enviada e passará por uma análise. Você será notificado quando o professor decidir.',
+                tipo: 'warning'
+            });
+        } catch (err) {
+            console.error(err);
+            if (fs.existsSync(tempFilePath)) {
+                await fs.promises.unlink(tempFilePath);
+            }
+            return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao processar a imagem.' });
+        }
+    });
 });
 
 app.get('/meuperfil/confirmar-email', async (req, res) => {
@@ -5169,6 +5244,148 @@ app.post('/presenca/cancelar/:id', async (req, res) => {
     }
 });
 
+// =========================
+// TROCAS DE AVATAR PENDENTES (PRO/ADM)
+// =========================
+app.get('/avatar-pendentes', async (req, res) => {
+    const forbidden = ensureProfessorRoute(req, res);
+    if (forbidden) return forbidden;
+
+    try {
+        const pendentes = await AvatarChangeRequest.findAll({
+            order: [['createdAt', 'DESC']]
+        });
+
+        const userCodes = [...new Set(pendentes.map((p) => p.user_code).filter(Boolean))];
+        const usuarios = userCodes.length > 0
+            ? await Usuario.findAll({
+                where: { user_code: { [Op.in]: userCodes } },
+                attributes: ['user_code', 'first_name', 'last_name', 'photo']
+            })
+            : [];
+
+        const usuarioMap = usuarios.reduce((acc, u) => {
+            const plain = u.get({ plain: true });
+            acc[plain.user_code] = {
+                fullName: `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code,
+                photo: plain.photo || '/uploads/users/default.jpg'
+            };
+            return acc;
+        }, {});
+
+        const solicitacoes = pendentes.map((p) => {
+            const plain = p.get({ plain: true });
+            const aluno = usuarioMap[plain.user_code] || {
+                fullName: plain.user_code,
+                photo: '/uploads/users/default.jpg'
+            };
+            return {
+                ...plain,
+                aluno_nome: aluno.fullName,
+                aluno_photo_atual: aluno.photo,
+                aluno_photo_nova: `/uploads/users/${plain.temp_photo_filename}`,
+                createdAtLabel: formatDateTimePtBr(plain.createdAt)
+            };
+        });
+
+        return res.render('avatarpendentes', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'danger',
+            solicitacoes
+        });
+    } catch (err) {
+        return res.render('avatarpendentes', {
+            mensagem: 'Erro ao carregar solicitações: ' + err.message,
+            tipoMensagem: 'danger',
+            solicitacoes: []
+        });
+    }
+});
+
+app.post('/avatar-pendentes/:id/aprovar', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.json({ ok: false, mensagem: 'Apenas professor ou administrador pode aprovar solicitações.' });
+    }
+
+    try {
+        const requestId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(requestId)) {
+            throw new Error('ID inválido.');
+        }
+
+        const solicitacao = await AvatarChangeRequest.findByPk(requestId);
+        if (!solicitacao) {
+            throw new Error('Solicitação não encontrada.');
+        }
+
+        const usuario = await Usuario.findOne({ where: { user_code: solicitacao.user_code } });
+        if (!usuario) {
+            throw new Error('Aluno não encontrado.');
+        }
+
+        await replaceUserPhoto(usuario, solicitacao.temp_photo_filename);
+        await solicitacao.destroy();
+
+        try {
+            await Notificacao.create({
+                user_code: usuario.user_code,
+                kind: 'AVATAR_APROVADO',
+                title: 'Novo avatar aprovado',
+                body: 'Sua nova foto de perfil foi analisada e aprovada pelo professor.',
+                read_at: null
+            });
+        } catch (notifErr) {
+            console.error('Erro ao registrar notificação de avatar aprovado:', notifErr.message);
+        }
+
+        return res.json({ ok: true, mensagem: 'Avatar aprovado com sucesso.' });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro ao aprovar solicitação: ' + err.message });
+    }
+});
+
+app.post('/avatar-pendentes/:id/negar', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.json({ ok: false, mensagem: 'Apenas professor ou administrador pode negar solicitações.' });
+    }
+
+    try {
+        const requestId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(requestId)) {
+            throw new Error('ID inválido.');
+        }
+
+        const solicitacao = await AvatarChangeRequest.findByPk(requestId);
+        if (!solicitacao) {
+            throw new Error('Solicitação não encontrada.');
+        }
+
+        const tempFilePath = path.join(uploadsDir, solicitacao.temp_photo_filename);
+        if (fs.existsSync(tempFilePath)) {
+            await fs.promises.unlink(tempFilePath);
+        }
+
+        const userCode = solicitacao.user_code;
+        await solicitacao.destroy();
+
+        try {
+            await Notificacao.create({
+                user_code: userCode,
+                kind: 'AVATAR_NEGADO',
+                title: 'Novo avatar negado',
+                body: 'Sua nova foto de perfil não foi aprovada pelo professor. Sua foto atual foi mantida.',
+                read_at: null
+            });
+        } catch (notifErr) {
+            console.error('Erro ao registrar notificação de avatar negado:', notifErr.message);
+        }
+
+        return res.json({ ok: true, mensagem: 'Solicitação negada com sucesso.' });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro ao negar solicitação: ' + err.message });
+    }
+});
+
 app.get('/katas-movimentos', (req, res) => {
     const usuarioSessao = req.session.usuario;
     if (!usuarioSessao || usuarioSessao.role !== 'STD') {
@@ -5210,9 +5427,9 @@ app.get('/notificacoes', async (req, res) => {
                 readAtLabel: plain.read_at ? formatDateTimePtBr(plain.read_at) : '',
                 isUnread: !plain.read_at,
                 kindBadge:
-                    plain.kind === 'PRESENCA_NEGADA'
+                    plain.kind === 'PRESENCA_NEGADA' || plain.kind === 'AVATAR_NEGADO'
                         ? 'danger'
-                        : plain.kind === 'PRESENCA_APROVADA'
+                        : plain.kind === 'PRESENCA_APROVADA' || plain.kind === 'AVATAR_APROVADO'
                             ? 'success'
                             : 'secondary'
             };

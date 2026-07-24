@@ -6,7 +6,13 @@
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h1 class="mb-0">Notificações</h1>
-    <div class="d-flex flex-wrap gap-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        {{#if notificacoes.length}}
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="checkSelecionarTodasNotificacoes">
+            <label class="form-check-label small" for="checkSelecionarTodasNotificacoes">Selecionar todas</label>
+        </div>
+        {{/if}}
         <button type="button" class="btn btn-outline-danger btn-sm d-none" id="btnRemoverNotificacoes">
             <i class="fa-solid fa-trash-can"></i> <span id="btnRemoverNotificacoesLabel">Remover</span>
         </button>
@@ -111,9 +117,35 @@
         btnLabel.textContent = selectedCount === 1 ? 'Remover' : 'Remover Selecionados';
     }
 
+    function syncSelectAllCheckboxState() {
+        const checkSelecionarTodas = document.getElementById('checkSelecionarTodasNotificacoes');
+        if (!checkSelecionarTodas) {
+            return;
+        }
+
+        const checkboxes = document.querySelectorAll('.notificacao-select');
+        const selectedCount = document.querySelectorAll('.notificacao-select:checked').length;
+        checkSelecionarTodas.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
+        checkSelecionarTodas.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
+    }
+
     document.querySelectorAll('.notificacao-select').forEach(function (checkbox) {
-        checkbox.addEventListener('change', syncRemoveButtonState);
+        checkbox.addEventListener('change', function () {
+            syncRemoveButtonState();
+            syncSelectAllCheckboxState();
+        });
     });
+
+    const checkSelecionarTodas = document.getElementById('checkSelecionarTodasNotificacoes');
+    if (checkSelecionarTodas) {
+        checkSelecionarTodas.addEventListener('change', function () {
+            document.querySelectorAll('.notificacao-select').forEach(function (checkbox) {
+                checkbox.checked = checkSelecionarTodas.checked;
+            });
+            syncRemoveButtonState();
+            syncSelectAllCheckboxState();
+        });
+    }
 
     const btnRemover = document.getElementById('btnRemoverNotificacoes');
     if (btnRemover) {

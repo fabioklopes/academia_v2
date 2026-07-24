@@ -228,13 +228,13 @@ async function getStudentMassMessageState(usuarioSessao) {
         leituras
             .map((item) => {
                 const id = Number(item.message_id);
-                if (!Number.isInteger(id) || id <= 0) {
+                if (!Number.isInteger(id) || id <= 0 || !item.viewed_at) {
                     return null;
                 }
 
-                // Alguns registros antigos podem ter `viewed_at` nulo.
-                // A existência do registro indica que a mensagem foi marcada como lida.
-                return [id, item.viewed_at || true];
+                // Só conta como lida quando `viewed_at` está preenchido
+                // (o aluno clicou explicitamente em "Marcar como lida").
+                return [id, item.viewed_at];
             })
             .filter(Boolean)
     );
@@ -256,9 +256,8 @@ async function getStudentMassMessageState(usuarioSessao) {
     const messages = mensagens.map((mensagem) => {
         const vm = toMassMessageViewModel(mensagem, audience.turmaByCode);
         const messageId = Number(vm.id);
-        const readMarker = readByMessageId.get(messageId) || null;
-        const isRead = readByMessageId.has(messageId);
-        const readAt = readMarker && readMarker !== true ? readMarker : null;
+        const readAt = readByMessageId.get(messageId) || null;
+        const isRead = Boolean(readAt);
         const isExpired = vm.statusLabel === 'Expirado';
 
         return {
@@ -306,7 +305,7 @@ async function markMassMessageAsRead(usuarioSessao, messageId) {
         throw new Error('Mensagem não encontrada.');
     }
 
-    const [leitura] = await MensagemProfessorLeitura.findOrCreate({
+    const [leitura, created] = await MensagemProfessorLeitura.findOrCreate({
         where: {
             message_id: messageId,
             user_code: usuarioSessao.user_code
@@ -315,6 +314,11 @@ async function markMassMessageAsRead(usuarioSessao, messageId) {
             viewed_at: new Date()
         }
     });
+
+    if (!created && !leitura.viewed_at) {
+        leitura.viewed_at = new Date();
+        await leitura.save();
+    }
 
     const state = await getStudentMassMessageState(usuarioSessao);
 

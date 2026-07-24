@@ -1445,35 +1445,8 @@ app.post('/metasdeaula', async (req, res) => {
             }));
 
             try {
-                const novasMensagens = await MensagemProfessor.bulkCreate(noticePayload);
-                
-                // Buscar todos os alunos das turmas selecionadas
-                const enrollments = await TurmaAluno.findAll({
-                    where: { class_code: { [Op.in]: classCodes }, active: 'Y' },
-                    attributes: ['user_code']
-                });
-                const studentUserCodes = [...new Set(enrollments.map((e) => e.user_code))].filter(Boolean);
+                await MensagemProfessor.bulkCreate(noticePayload);
 
-                // Criar registros de "não lida" para cada aluno em cada mensagem
-                if (studentUserCodes.length > 0 && novasMensagens.length > 0) {
-                    const leituraPayload = [];
-                    novasMensagens.forEach((msg) => {
-                        studentUserCodes.forEach((userCode) => {
-                            leituraPayload.push({
-                                message_id: msg.id,
-                                user_code: userCode,
-                                viewed_at: null
-                            });
-                        });
-                    });
-                    
-                    try {
-                        await MensagemProfessorLeitura.bulkCreate(leituraPayload);
-                    } catch (leituraError) {
-                        console.error('Erro ao marcar mensagens como não-lidas:', leituraError);
-                    }
-                }
-                
                 mensagem += ' Aviso enviado aos alunos matriculados.';
             } catch (noticeError) {
                 console.error('Erro ao enviar aviso:', noticeError);
@@ -1571,33 +1544,7 @@ app.post('/mensagens', async (req, res) => {
             status: 'A'
         }));
 
-        const novasMensagens = await MensagemProfessor.bulkCreate(payload);
-        
-        // Buscar todos os alunos das turmas selecionadas e marcar mensagens como não-lidas
-        const enrollments = await TurmaAluno.findAll({
-            where: { class_code: { [Op.in]: classCodes }, active: 'Y' },
-            attributes: ['user_code']
-        });
-        const studentUserCodes = [...new Set(enrollments.map((e) => e.user_code))].filter(Boolean);
-
-        if (studentUserCodes.length > 0 && novasMensagens.length > 0) {
-            const leituraPayload = [];
-            novasMensagens.forEach((msg) => {
-                studentUserCodes.forEach((userCode) => {
-                    leituraPayload.push({
-                        message_id: msg.id,
-                        user_code: userCode,
-                        viewed_at: null
-                    });
-                });
-            });
-            
-            try {
-                await MensagemProfessorLeitura.bulkCreate(leituraPayload);
-            } catch (leituraError) {
-                console.error('Erro ao marcar mensagens como não-lidas:', leituraError);
-            }
-        }
+        await MensagemProfessor.bulkCreate(payload);
 
         req.session.lastMassMessageSubmission = {
             key: submissionKey,
@@ -1694,7 +1641,7 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
 
         const additionalClassCodes = classCodes.slice(1);
         if (additionalClassCodes.length > 0) {
-            const additionalMensagens = await MensagemProfessor.bulkCreate(
+            await MensagemProfessor.bulkCreate(
                 additionalClassCodes.map((classCode) => ({
                     title,
                     content,
@@ -1704,32 +1651,6 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
                     status: 'A'
                 }))
             );
-
-            // Marcar mensagens replicadas como não-lidas para todos os alunos
-            const enrollments = await TurmaAluno.findAll({
-                where: { class_code: { [Op.in]: additionalClassCodes }, active: 'Y' },
-                attributes: ['user_code']
-            });
-            const studentUserCodes = [...new Set(enrollments.map((e) => e.user_code))].filter(Boolean);
-
-            if (studentUserCodes.length > 0) {
-                const leituraPayload = [];
-                additionalMensagens.forEach((msg) => {
-                    studentUserCodes.forEach((userCode) => {
-                        leituraPayload.push({
-                            message_id: msg.id,
-                            user_code: userCode,
-                            viewed_at: null
-                        });
-                    });
-                });
-
-                try {
-                    await MensagemProfessorLeitura.bulkCreate(leituraPayload);
-                } catch (leituraError) {
-                    console.error('Erro ao marcar mensagens replicadas como não-lidas:', leituraError);
-                }
-            }
         }
 
         const mensagem = classCodes.length > 1

@@ -112,6 +112,9 @@
                 </div>
 
                 <div class="d-flex flex-column gap-2 justify-content-center">
+                    <button type="button" class="btn btn-outline-success btn-sm" id="studentMassDetailReadButton">
+                        <i class="fa-solid fa-envelope-open"></i> Marcar como lida
+                    </button>
                     <button type="button" class="btn btn-outline-primary btn-sm" id="studentMassDetailUnreadButton">
                         <i class="fa-solid fa-envelope"></i> Marcar como não lido
                     </button>
@@ -279,6 +282,7 @@
             const detailExpiresAt = document.getElementById('studentMassDetailExpiresAt');
             const detailReadAtRow = document.getElementById('studentMassDetailReadAtRow');
             const detailReadAt = document.getElementById('studentMassDetailReadAt');
+            const detailReadButton = document.getElementById('studentMassDetailReadButton');
             const detailUnreadButton = document.getElementById('studentMassDetailUnreadButton');
             const detailHideButton = document.getElementById('studentMassDetailHideButton');
 
@@ -365,29 +369,14 @@
                     btn.appendChild(title);
                     btn.appendChild(preview);
 
-                    btn.addEventListener('click', async function() {
+                    btn.addEventListener('click', function() {
                         selectedMessageId = message.id;
                         const current = findMessageById(message.id);
                         if (!current) {
                             return;
                         }
 
-                        if (!current.isRead && !pendingMessageIds.has(current.id)) {
-                            pendingMessageIds.add(current.id);
-                            try {
-                                const payload = await postMarkAsRead(current.id);
-                                current.isRead = true;
-                                current.readAtLabel = payload.readAtLabel || current.readAtLabel;
-                            } catch (error) {
-                                console.error('Erro ao marcar leitura ao abrir detalhe:', error);
-                            } finally {
-                                pendingMessageIds.delete(current.id);
-                            }
-                        }
-
                         renderDetailModal(current);
-                        updateCardsAndEmptyState();
-                        renderListModal(selectedCategory);
                         detailModal.show();
                     });
 
@@ -429,6 +418,45 @@
                 if (detailUnreadButton) {
                     detailUnreadButton.classList.toggle('d-none', !message.isRead);
                 }
+
+                if (detailReadButton) {
+                    detailReadButton.classList.toggle('d-none', message.isRead);
+                }
+            }
+
+            if (detailReadButton) {
+                detailReadButton.addEventListener('click', async function() {
+                    if (!selectedMessageId || pendingMessageIds.has(selectedMessageId)) {
+                        return;
+                    }
+
+                    const current = findMessageById(selectedMessageId);
+                    if (!current || current.isRead) {
+                        return;
+                    }
+
+                    pendingMessageIds.add(selectedMessageId);
+                    detailReadButton.disabled = true;
+
+                    try {
+                        const payload = await postMarkAsRead(selectedMessageId);
+                        current.isRead = true;
+                        current.readAtLabel = payload.readAtLabel || current.readAtLabel;
+
+                        renderDetailModal(current);
+                        updateCardsAndEmptyState();
+                        renderListModal(selectedCategory);
+
+                        if (payload && typeof payload.unreadCount === 'number') {
+                            updateStudentMassMessageBellSafe(payload.unreadCount);
+                        }
+                    } catch (error) {
+                        console.error('Erro ao marcar como lida:', error);
+                    } finally {
+                        pendingMessageIds.delete(selectedMessageId);
+                        detailReadButton.disabled = false;
+                    }
+                });
             }
 
             if (detailUnreadButton) {

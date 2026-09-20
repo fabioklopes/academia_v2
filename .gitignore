@@ -7,7 +7,7 @@ node_modules/
 
 # uploads / generated
 uploads/
-./bkp
+.bkp/
 *.7z
 *.zip
 

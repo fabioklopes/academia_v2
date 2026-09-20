@@ -7,6 +7,9 @@ node_modules/
 
 # uploads / generated
 uploads/
+./bkp
+*.7z
+*.zip
 
 # logs
 *.log
@@ -23,6 +26,3 @@ Thumbs.db
 # temp
 .tmp*
 tmp_*.js
-
-# temp
-

@@ -1,14 +1,9 @@
 #!/bin/bash
-# Ativar modo manutenção
 
-# Remove configuração atual da aplicação
-sudo rm -f /etc/nginx/sites-enabled/crtn-belem
+touch /home/academia_v2/manutencao.on
+rm -f /home/academia_v2/manutencao.off
 
-# Cria link para página de manutenção
-sudo ln -s /etc/nginx/sites-available/manutencao /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/manutencao \
+/etc/nginx/sites-enabled/manutencao
 
-# Recarrega Nginx
-sudo systemctl reload nginx
-
-echo ">>> Modo manutenção ativado. Página de aviso está online."
-
+nginx -t && systemctl reload nginx

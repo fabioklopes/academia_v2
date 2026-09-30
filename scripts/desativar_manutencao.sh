@@ -1,14 +1,8 @@
 #!/bin/bash
-# Desativar modo manutenção
 
-# Remove configuração de manutenção
-sudo rm -f /etc/nginx/sites-enabled/manutencao
+touch /home/academia_v2/manutencao.off
+rm -f /home/academia_v2/manutencao.on
 
-# Cria link para configuração da aplicação
-sudo ln -s /etc/nginx/sites-available/crtn-belem /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/manutencao
 
-# Recarrega Nginx
-sudo systemctl reload nginx
-
-echo ">>> Modo manutenção desativado. Aplicação voltou ao ar."
-
+nginx -t && systemctl reload nginx

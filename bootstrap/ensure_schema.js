@@ -127,6 +127,33 @@ async function ensureUsuarioClassCodeColumn() {
     }
 }
 
+/**
+ * Garante as colunas do fluxo "Esqueci minha senha" em tb_usuarios.
+ * Usuario.sync() sem alter não cria colunas em tabelas já existentes,
+ * então bancos criados antes do módulo ficariam sem elas e a gravação
+ * do reset_token_hash falharia silenciosamente.
+ */
+async function ensureUsuarioResetTokenColumns() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable(USUARIOS_TABLE);
+
+    if (!tableDescription.reset_token_hash) {
+        await queryInterface.addColumn(USUARIOS_TABLE, 'reset_token_hash', {
+            type: Sequelize.STRING(255),
+            allowNull: true
+        });
+        console.log('Coluna reset_token_hash adicionada em tb_usuarios.');
+    }
+
+    if (!tableDescription.reset_token_expires) {
+        await queryInterface.addColumn(USUARIOS_TABLE, 'reset_token_expires', {
+            type: Sequelize.DATE,
+            allowNull: true
+        });
+        console.log('Coluna reset_token_expires adicionada em tb_usuarios.');
+    }
+}
+
 /** Adiciona coluna para o aluno desativar mensagens de aniversário. */
 async function ensureUsuarioBirthdayMessagesDisabledColumn() {
     const queryInterface = sequelize.getQueryInterface();
@@ -186,6 +213,7 @@ async function ensureTurmaSchema() {
     await AtributoAvaliacao.sync();
     await AvatarChangeRequest.sync();
     await ensureUsuarioClassCodeColumn();
+    await ensureUsuarioResetTokenColumns();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();
 }
@@ -193,5 +221,6 @@ async function ensureTurmaSchema() {
 module.exports = {
     dedupeUsuarioRedundantIndexes,
     ensureUsuarioEmailNotUnique,
+    ensureUsuarioResetTokenColumns,
     ensureTurmaSchema
 };

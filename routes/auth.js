@@ -165,45 +165,72 @@ function registerAuthRoutes(app, deps) {
             });
         }
 
+        const renderRequestPage = (extra = {}) => renderForgotPasswordPage(res, {
+            email,
+            statusMessages: extra.statusMessages,
+            previewResetLink: extra.previewResetLink,
+            previewResetMessage: extra.previewResetMessage,
+            metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
+        });
+
         try {
             const usuarios = await findUsuariosByEmail(email);
-            const emailFound = usuarios.length > 0;
 
-            if (emailFound) {
-                const token = crypto.randomBytes(32).toString('hex');
-                const tokenHash = await argon2.hash(token);
-                const reset_token_expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
-                const usuarioIds = usuarios.map((usuario) => usuario.id);
-
-                await Usuario.update(
-                    { reset_token_hash: tokenHash, reset_token_expires },
-                    {
-                        where: {
-                            id: { [Op.in]: usuarioIds }
-                        }
-                    }
-                );
-
-                try {
-                    await sendResetPasswordEmail(req, email, token, usuarios.length);
-                } catch (mailError) {
-                    console.error('Falha ao enviar e-mail de redefinição:', mailError.message);
-                }
+            // Anti-enumeração: e-mail inexistente devolve exatamente a mesma tela de sucesso.
+            if (usuarios.length === 0) {
+                return renderRequestPage({
+                    statusMessages: buildForgotPasswordAcknowledgementMessage()
+                });
             }
 
-            return renderForgotPasswordPage(res, {
-                requestMode: false,
-                email: '',
-                statusMessages: buildForgotPasswordAcknowledgementMessage(),
-                metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
+            const token = crypto.randomBytes(32).toString('hex');
+            const tokenHash = await argon2.hash(token);
+            const reset_token_expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+            const usuarioIds = usuarios.map((usuario) => usuario.id);
+
+            await Usuario.update(
+                { reset_token_hash: tokenHash, reset_token_expires },
+                {
+                    where: {
+                        id: { [Op.in]: usuarioIds }
+                    }
+                }
+            );
+
+            let resultadoEnvio;
+
+            try {
+                resultadoEnvio = await sendResetPasswordEmail(req, email, token, usuarios.length);
+            } catch (mailError) {
+                console.error('Falha ao enviar e-mail de redefinição:', mailError.message);
+            }
+
+            if (resultadoEnvio && resultadoEnvio.deliveryStatus === 'preview') {
+                // Sem SMTP configurado: exibe o link para o operador concluir o teste.
+                return renderRequestPage({
+                    statusMessages: buildForgotPasswordMessages({ deliveryStatus: 'preview' }),
+                    previewResetLink: resultadoEnvio.resetLink,
+                    previewResetMessage: `Link de redefinição (válido por ${RESET_TOKEN_TTL_MINUTES} minutos):`
+                });
+            }
+
+            if (!resultadoEnvio) {
+                return renderRequestPage({
+                    statusMessages: buildForgotPasswordMessages({
+                        errorMessage: 'Não foi possível enviar a mensagem de redefinição agora. Tente novamente em instantes.'
+                    })
+                });
+            }
+
+            return renderRequestPage({
+                statusMessages: buildForgotPasswordAcknowledgementMessage()
             });
         } catch (error) {
             console.error('Erro ao processar solicitação de redefinição:', error);
-            return renderForgotPasswordPage(res, {
-                requestMode: false,
-                email: '',
-                statusMessages: buildForgotPasswordAcknowledgementMessage(),
-                metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
+            return renderRequestPage({
+                statusMessages: buildForgotPasswordMessages({
+                    errorMessage: 'Não foi possível concluir a solicitação agora. Tente novamente em instantes.'
+                })
             });
         }
     });

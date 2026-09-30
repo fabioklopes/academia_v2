@@ -305,7 +305,7 @@ Pasta `services/` — funções chamadas por várias rotas.
 | Função | O que faz |
 |--------|-----------|
 | `handleResetPasswordSubmit(req, res)` | Processa formulário de nova senha |
-| `sendResetPasswordEmail(...)` | Envia e-mail com link de reset |
+| `sendResetPasswordEmail(...)` | Envia e-mail com link de reset; devolve `deliveryStatus` (`sent`/`preview`) e o link gerado |
 | `findUsuariosWithValidResetToken(email, token)` | Verifica se o link ainda é válido |
 
 ### `student_list_exports.js`
@@ -318,6 +318,8 @@ Pasta `services/` — funções chamadas por várias rotas.
 ### `mail_transport.js` / `public_app_links.js`
 
 - Configuram envio de e-mail (SMTP) e montam links absolutos para reset de senha e confirmação de e-mail.
+- Sem SMTP configurado, o fluxo não envia e-mail e exibe o link de redefinição direto na tela (modo de teste local).
+- Se o envio falhar, a tela avisa em vez de afirmar que a mensagem foi enviada.
 
 ---
 

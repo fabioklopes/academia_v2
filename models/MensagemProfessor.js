@@ -14,6 +14,11 @@ const MensagemProfessor = db.sequelize.define('tb_mensagens_professores', {
     status: {
         type: db.Sequelize.ENUM('A', 'E'),
         defaultValue: 'A',
+    },
+    // Preenchido quando o aviso em massa é disparado por e-mail.
+    email_sent_at: {
+        type: db.Sequelize.DATE,
+        allowNull: true
     }
 });
 

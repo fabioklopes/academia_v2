@@ -161,6 +161,31 @@
                 </div>
 
                 <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingNotificacoes">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNotificacoes" aria-expanded="false" aria-controls="collapseNotificacoes">
+                            <span class="badge text-bg-primary me-2"><i class="fa-solid fa-bell" aria-hidden="true"></i></span>
+                            <b>Notificações</b>
+                        </button>
+                    </h2>
+                    <div id="collapseNotificacoes" class="accordion-collapse collapse" data-bs-parent="#accordionPerfil" aria-labelledby="headingNotificacoes">
+                        <div class="accordion-body">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="mpNotificationEmailEnabled" {{#if usuario.notification_email_enabled}}checked{{/if}} aria-describedby="mpNotificationEmailHint">
+                                <label class="form-check-label" for="mpNotificationEmailEnabled">Receber notificações também por e-mail</label>
+                            </div>
+                            <p class="small text-body-secondary mt-2 mb-0" id="mpNotificationEmailHint">
+                                Você continua recebendo tudo dentro do sistema, normalmente. Com esta opção ligada, cada notificação (aprovação de presença, análise de foto e comunicados dos professores) também chega no e-mail <strong>{{usuario.email}}</strong>.
+                            </p>
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="mpBtnSalvarNotificationEmail">
+                                    <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Salvar preferência
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
                     <h2 class="accordion-header" id="headingSeg">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeg" aria-expanded="false" aria-controls="collapseSeg">
                             <span class="badge text-bg-primary me-2"><i class="fa-solid fa-key" aria-hidden="true"></i></span>
@@ -422,6 +447,26 @@
             showPageAlert('danger', err.message);
         }
     });
+
+    const mpNotificationEmail = document.getElementById('mpNotificationEmailEnabled');
+    const mpBtnSalvarNotificationEmail = document.getElementById('mpBtnSalvarNotificationEmail');
+
+    if (mpNotificationEmail && mpBtnSalvarNotificationEmail) {
+        mpBtnSalvarNotificationEmail.addEventListener('click', async function () {
+            mpBtnSalvarNotificationEmail.disabled = true;
+            try {
+                const data = await postJson('/meuperfil/notificacoes-email', {
+                    notification_email_enabled: mpNotificationEmail.checked ? 'true' : 'false'
+                });
+                mpNotificationEmail.checked = Boolean(data.notification_email_enabled);
+                showPageAlert('success', data.mensagem || 'Preferência salva.');
+            } catch (err) {
+                showPageAlert('danger', err.message);
+            } finally {
+                mpBtnSalvarNotificationEmail.disabled = false;
+            }
+        });
+    }
 
     function atualizarGrausPorFaixa() {
         const beltEl = document.getElementById('mp_actual_belt');

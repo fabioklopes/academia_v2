@@ -149,6 +149,16 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     email_change_expires: {
         type: db.Sequelize.DATE,
         allowNull: true
+    },
+    /**
+     * Preferência do usuário (ADM/PRO/STD): receber as notificações do
+     * sistema também por e-mail. Desligado, a notificação continua
+     * aparecendo normalmente dentro do sistema.
+     */
+    notification_email_enabled: {
+        type: db.Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
     }
 });
 

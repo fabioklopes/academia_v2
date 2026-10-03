@@ -121,6 +121,10 @@ const { ensureProfessorRoute, ensureAdminRoute, ensureRankingRoute } = require('
 const { exportStudentsToXlsx, exportStudentsToPdf } = require('./services/student_list_exports');
 const { buildFrequenciaRankingPage } = require('./services/ranking_frequencia');
 const { getPasswordResetTransportConfig } = require('./services/mail_transport');
+const {
+    safeDispatchNotificationEmail,
+    safeDispatchMassMessageEmail
+} = require('./services/notification_email');
 const { buildEmailChangeConfirmLink } = require('./services/public_app_links');
 const { registerAuthRoutes } = require('./routes/auth');
 const {
@@ -1408,12 +1412,17 @@ app.post('/metasdeaula', async (req, res) => {
             throw new Error('Selecione pelo menos uma turma para aplicar a meta.');
         }
 
-        const activeTurmas = await Turma.findAll({ where: { active: 'Y' }, attributes: ['class_code'] });
+        const activeTurmas = await Turma.findAll({ where: { active: 'Y' }, attributes: ['class_code', 'class_name'] });
         const allowedCodes = new Set(activeTurmas.map((item) => item.class_code));
         const invalidClass = classCodes.some((code) => !allowedCodes.has(code));
         if (invalidClass) {
             throw new Error('Uma ou mais turmas selecionadas não estão disponíveis.');
         }
+
+        const turmaNameByCode = activeTurmas.reduce((acc, item) => {
+            acc[item.class_code] = item.class_name;
+            return acc;
+        }, {});
 
         // Observação: não bloqueamos títulos "parecidos".
         // Exemplos válidos: "Graduação - 1º Semestre - 2026" e "Graduação - 2º Semestre - 2026".
@@ -1442,9 +1451,10 @@ app.post('/metasdeaula', async (req, res) => {
 
         if (sendNotice === 'yes') {
             const expiresAt = new Date(`${endParsed.iso}T23:59:59`);
+            const noticeContent = `Uma nova meta de aula foi criada pelo professor ${req.session.usuario.first_name || ''} ${req.session.usuario.last_name || ''}. Fique ligado(a)!`;
             const noticePayload = classCodes.map((classCode) => ({
                 title: 'Nova meta de aula',
-                content: `Uma nova meta de aula foi criada pelo professor ${req.session.usuario.first_name || ''} ${req.session.usuario.last_name || ''}. Fique ligado(a)!`,
+                content: noticeContent,
                 class: classCode,
                 created_by: req.session.usuario.user_code,
                 expires_at: expiresAt,
@@ -1452,7 +1462,22 @@ app.post('/metasdeaula', async (req, res) => {
             }));
 
             try {
-                await MensagemProfessor.bulkCreate(noticePayload);
+                const avisosCriados = await MensagemProfessor.bulkCreate(noticePayload);
+
+                safeDispatchMassMessageEmail({
+                    title: 'Nova meta de aula',
+                    content: noticeContent,
+                    actor: req.session.usuario,
+                    req,
+                    details: [
+                        { label: 'Meta', value: title },
+                        {
+                            label: classCodes.length > 1 ? 'Turmas' : 'Turma',
+                            value: classCodes.map((code) => turmaNameByCode[code] || code).join(', ')
+                        }
+                    ],
+                    messageIds: avisosCriados.map((aviso) => aviso.id)
+                });
 
                 mensagem += ' Aviso enviado aos alunos matriculados.';
             } catch (noticeError) {
@@ -1542,6 +1567,11 @@ app.post('/mensagens', async (req, res) => {
             throw new Error('Uma ou mais turmas selecionadas nao estao disponiveis para o seu perfil.');
         }
 
+        const turmaNameByCode = turmasDisponiveis.reduce((acc, item) => {
+            acc[item.class_code] = item.class_name;
+            return acc;
+        }, {});
+
         const payload = classCodes.map((classCode) => ({
             title,
             content,
@@ -1551,7 +1581,22 @@ app.post('/mensagens', async (req, res) => {
             status: 'A'
         }));
 
-        await MensagemProfessor.bulkCreate(payload);
+        const mensagensCriadas = await MensagemProfessor.bulkCreate(payload);
+
+        safeDispatchMassMessageEmail({
+            title,
+            content,
+            actor: req.session.usuario,
+            req,
+            details: [
+                {
+                    label: classCodes.length > 1 ? 'Turmas' : 'Turma',
+                    value: classCodes.map((code) => turmaNameByCode[code] || code).join(', ')
+                },
+                { label: 'Válido até', value: formatDateTimePtBr(expiresAt) }
+            ],
+            messageIds: mensagensCriadas.map((mensagem) => mensagem.id)
+        });
 
         req.session.lastMassMessageSubmission = {
             key: submissionKey,
@@ -1622,6 +1667,11 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
             throw new Error('Uma ou mais turmas selecionadas nao estao disponiveis para o seu perfil.');
         }
 
+        const turmaNameByCode = turmasDisponiveis.reduce((acc, item) => {
+            acc[item.class_code] = item.class_name;
+            return acc;
+        }, {});
+
         const where = { id: messageId };
 
         const mensagemExistente = await MensagemProfessor.findOne({ where });
@@ -1634,6 +1684,9 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
         mensagemExistente.class = classCodes[0];
         mensagemExistente.expires_at = expiresAt;
         mensagemExistente.status = 'A';
+        // Zera a marca de envio: a reativacao cria um aviso novo e precisa
+        // chegar por e-mail novamente.
+        mensagemExistente.email_sent_at = null;
         await mensagemExistente.save();
 
         // Reativacao deve voltar como mensagem nova para os alunos.
@@ -1647,8 +1700,9 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
         ]);
 
         const additionalClassCodes = classCodes.slice(1);
+        let replicasCriadas = [];
         if (additionalClassCodes.length > 0) {
-            await MensagemProfessor.bulkCreate(
+            replicasCriadas = await MensagemProfessor.bulkCreate(
                 additionalClassCodes.map((classCode) => ({
                     title,
                     content,
@@ -1659,6 +1713,21 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
                 }))
             );
         }
+
+        safeDispatchMassMessageEmail({
+            title,
+            content,
+            actor: req.session.usuario,
+            req,
+            details: [
+                {
+                    label: classCodes.length > 1 ? 'Turmas' : 'Turma',
+                    value: classCodes.map((code) => turmaNameByCode[code] || code).join(', ')
+                },
+                { label: 'Válido até', value: formatDateTimePtBr(expiresAt) }
+            ],
+            messageIds: [mensagemExistente.id, ...replicasCriadas.map((replica) => replica.id)]
+        });
 
         const mensagem = classCodes.length > 1
             ? 'Mensagem reativada e replicada com sucesso para as turmas selecionadas.'
@@ -2469,6 +2538,34 @@ app.post('/meuperfil/dados-pessoais', requireMeuPerfilSession, async (req, res) 
         }
 
         return res.json({ ok: true, mensagem: 'Dados pessoais salvos com sucesso.' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao salvar.' });
+    }
+});
+
+app.post('/meuperfil/notificacoes-email', requireMeuPerfilSession, async (req, res) => {
+    try {
+        // A preferência é sempre do titular logado: faz sentido para ADM, PRO e STD,
+        // mas não para quem está apenas visualizando o perfil de um dependente.
+        const usuario = await Usuario.findByPk(req.session.usuario.id);
+        if (!usuario) {
+            return res.status(404).json({ ok: false, mensagem: 'Usuário não encontrado.' });
+        }
+
+        const desired = req.body?.notification_email_enabled;
+        const enabled = desired === true || desired === 'true' || desired === '1' || desired === 'on';
+
+        usuario.notification_email_enabled = enabled;
+        await usuario.save();
+
+        return res.json({
+            ok: true,
+            notification_email_enabled: enabled,
+            mensagem: enabled
+                ? 'Notificações por e-mail ativadas.'
+                : 'Notificações por e-mail desativadas.'
+        });
     } catch (err) {
         console.error(err);
         return res.status(500).json({ ok: false, mensagem: err.message || 'Erro ao salvar.' });
@@ -4005,8 +4102,11 @@ function buildPresencaViewModel(p) {
     };
 }
 
-/** Cria notificação in-app quando o professor aprova ou nega uma solicitação de presença. */
-async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { observation } = {}) {
+/**
+ * Cria notificação in-app quando o professor aprova ou nega uma solicitação de
+ * presença e dispara o e-mail correspondente para o aluno.
+ */
+async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { observation, req } = {}) {
     const vm = buildPresencaViewModel(presencaInstance);
     const dataLabel = vm.request_date_formatted;
     const aulaInfo = vm.class_type_display || vm.class_type;
@@ -4016,8 +4116,22 @@ async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { obs
         return;
     }
 
+    const detalhes = [
+        { label: 'Data', value: dataLabel },
+        { label: 'Aula', value: aulaInfo }
+    ];
+
+    const actor = req && req.session ? req.session.usuario : null;
+    const notificarPorEmail = async (notificacao) => {
+        await safeDispatchNotificationEmail(notificacao, {
+            actor,
+            req,
+            details: detalhes
+        });
+    };
+
     if (decisao === 'A') {
-        await Notificacao.create({
+        const notificacao = await Notificacao.create({
             user_code: destCode,
             kind: 'PRESENCA_APROVADA',
             title: 'Solicitação de presença aprovada',
@@ -4025,12 +4139,13 @@ async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { obs
             presenca_id: presencaInstance.id,
             read_at: null
         });
+        await notificarPorEmail(notificacao);
         return;
     }
 
     if (decisao === 'N') {
         const obs = observation ? String(observation).trim() : '';
-        await Notificacao.create({
+        const notificacao = await Notificacao.create({
             user_code: destCode,
             kind: 'PRESENCA_NEGADA',
             title: 'Solicitação de presença negada',
@@ -4040,6 +4155,7 @@ async function createPresencaDecisaoNotificacao(presencaInstance, decisao, { obs
             presenca_id: presencaInstance.id,
             read_at: null
         });
+        await notificarPorEmail(notificacao);
     }
 }
 
@@ -4993,7 +5109,7 @@ app.post('/presenca/status/:id/aprovar', async (req, res) => {
         await presenca.save();
 
         try {
-            await createPresencaDecisaoNotificacao(presenca, 'A');
+            await createPresencaDecisaoNotificacao(presenca, 'A', { req });
         } catch (notifErr) {
             console.error('Erro ao registrar notificação de presença aprovada:', notifErr.message);
         }
@@ -5034,7 +5150,7 @@ app.post('/presenca/status/:id/negar', async (req, res) => {
         await presenca.save();
 
         try {
-            await createPresencaDecisaoNotificacao(presenca, 'N', { observation });
+            await createPresencaDecisaoNotificacao(presenca, 'N', { observation, req });
         } catch (notifErr) {
             console.error('Erro ao registrar notificação de presença negada:', notifErr.message);
         }
@@ -5272,12 +5388,17 @@ app.post('/avatar-pendentes/:id/aprovar', async (req, res) => {
         await solicitacao.destroy();
 
         try {
-            await Notificacao.create({
+            const notificacao = await Notificacao.create({
                 user_code: usuario.user_code,
                 kind: 'AVATAR_APROVADO',
                 title: 'Novo avatar aprovado',
                 body: 'Sua nova foto de perfil foi analisada e aprovada pelo professor.',
                 read_at: null
+            });
+
+            await safeDispatchNotificationEmail(notificacao, {
+                actor: req.session.usuario,
+                req
             });
         } catch (notifErr) {
             console.error('Erro ao registrar notificação de avatar aprovado:', notifErr.message);
@@ -5314,12 +5435,17 @@ app.post('/avatar-pendentes/:id/negar', async (req, res) => {
         await solicitacao.destroy();
 
         try {
-            await Notificacao.create({
+            const notificacao = await Notificacao.create({
                 user_code: userCode,
                 kind: 'AVATAR_NEGADO',
                 title: 'Novo avatar negado',
                 body: 'Sua nova foto de perfil não foi aprovada pelo professor. Sua foto atual foi mantida.',
                 read_at: null
+            });
+
+            await safeDispatchNotificationEmail(notificacao, {
+                actor: req.session.usuario,
+                req
             });
         } catch (notifErr) {
             console.error('Erro ao registrar notificação de avatar negado:', notifErr.message);

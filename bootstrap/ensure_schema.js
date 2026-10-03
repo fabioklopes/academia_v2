@@ -21,6 +21,8 @@ const AvatarChangeRequest = require('../models/AvatarChangeRequest');
 const { sequelize, Sequelize } = require('../models/db');
 
 const USUARIOS_TABLE = 'tb_usuarios';
+const NOTIFICACOES_TABLE = 'tb_notificacoes';
+const MENSAGENS_PROFESSORES_TABLE = 'tb_mensagens_professores';
 
 /**
  * Remove índices redundantes em tb_usuarios (efeito de sync alter repetido no MySQL).
@@ -216,11 +218,60 @@ async function ensureTurmaSchema() {
     await ensureUsuarioResetTokenColumns();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();
+    await ensureUsuarioNotificationEmailEnabledColumn();
+    await ensureNotificacaoEmailSentAtColumn();
+    await ensureMensagemProfessorEmailSentAtColumn();
+}
+
+/** Adiciona a preferência de receber notificações por e-mail em tb_usuarios. */
+async function ensureUsuarioNotificationEmailEnabledColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable(USUARIOS_TABLE);
+
+    if (!tableDescription.notification_email_enabled) {
+        await queryInterface.addColumn(USUARIOS_TABLE, 'notification_email_enabled', {
+            type: Sequelize.BOOLEAN,
+            allowNull: false,
+            defaultValue: true
+        });
+        console.log('Coluna notification_email_enabled adicionada em tb_usuarios.');
+    }
+}
+
+/** Marca em tb_notificacoes quando o aviso foi enviado por e-mail. */
+async function ensureNotificacaoEmailSentAtColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable(NOTIFICACOES_TABLE);
+
+    if (!tableDescription.email_sent_at) {
+        await queryInterface.addColumn(NOTIFICACOES_TABLE, 'email_sent_at', {
+            type: Sequelize.DATE,
+            allowNull: true
+        });
+        console.log('Coluna email_sent_at adicionada em tb_notificacoes.');
+    }
+}
+
+/** Marca em tb_mensagens_professores quando o aviso em massa foi enviado por e-mail. */
+async function ensureMensagemProfessorEmailSentAtColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable(MENSAGENS_PROFESSORES_TABLE);
+
+    if (!tableDescription.email_sent_at) {
+        await queryInterface.addColumn(MENSAGENS_PROFESSORES_TABLE, 'email_sent_at', {
+            type: Sequelize.DATE,
+            allowNull: true
+        });
+        console.log('Coluna email_sent_at adicionada em tb_mensagens_professores.');
+    }
 }
 
 module.exports = {
     dedupeUsuarioRedundantIndexes,
     ensureUsuarioEmailNotUnique,
     ensureUsuarioResetTokenColumns,
+    ensureUsuarioNotificationEmailEnabledColumn,
+    ensureNotificacaoEmailSentAtColumn,
+    ensureMensagemProfessorEmailSentAtColumn,
     ensureTurmaSchema
 };

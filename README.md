@@ -190,12 +190,12 @@ Conexão em `models/db.js`. Variáveis: `ENV_DB_HOST`, `ENV_DB_USER`, `ENV_DB_PA
 | `tb_turmas` | Turmas de aula (código, nome, professor criador) |
 | `tb_turma_alunos` | Quem está matriculado em cada turma |
 | `tb_presenca` | Pedidos de presença (pendente, aprovado, negado) |
-| `tb_mensagens_professores` | Avisos em massa para turmas |
+| `tb_mensagens_professores` | Avisos em massa para turmas + `email_sent_at` |
 | `tb_mensagens_professores_leituras` | Quais alunos já leram cada aviso |
 | `tb_mensagens_professores_ocultacoes` | Avisos que o aluno ocultou |
 | `tb_metas_aulas` | Metas de frequência por período |
 | `tb_meta_aula_turmas` | Liga metas às turmas |
-| `tb_notificacoes` | Avisos in-app (ex.: presença aprovada) |
+| `tb_notificacoes` | Avisos in-app (ex.: presença aprovada) + `email_sent_at` |
 | `tb_app_activity_logs` | Registro de ações HTTP (auditoria) |
 
 ### Status comuns
@@ -275,6 +275,12 @@ Conexão em `models/db.js`. Variáveis: `ENV_DB_HOST`, `ENV_DB_USER`, `ENV_DB_PA
 | GET | `/conta/trocar/:id` | Titular passa a ver conta do dependente |
 | GET | `/conta/voltar` | Volta à conta do titular |
 
+### Meu Perfil
+
+| Método | Caminho | Descrição |
+|--------|---------|-----------|
+| POST | `/meuperfil/notificacoes-email` | Liga/desliga o envio de e-mail das notificações (sempre no titular logado) |
+
 ---
 
 ## Serviços (lógica reutilizável)
@@ -320,6 +326,26 @@ Pasta `services/` — funções chamadas por várias rotas.
 - Configuram envio de e-mail (SMTP) e montam links absolutos para reset de senha e confirmação de e-mail.
 - Sem SMTP configurado, o fluxo não envia e-mail e exibe o link de redefinição direto na tela (modo de teste local).
 - Se o envio falhar, a tela avisa em vez de afirmar que a mensagem foi enviada.
+
+### `notification_email_content.js`
+
+- Constrói assunto, preheader, corpo em HTML e versão texto dos e-mails de notificação.
+- Assunto sempre no formato `CRTN Belém - {{assunto}}` (ex.: `CRTN Belém - Presença negada`).
+- O HTML é responsivo (tabela com `bgcolor` de fallback), traz o autor da ação (Professor/Administrador), os detalhes contextuais e um link "Abrir no sistema".
+
+### `notification_email.js`
+
+- Dispara os e-mails de notificação reutilizando o SMTP de `mail_transport.js`.
+- Funciona para ADM, PRO e STD. Sem SMTP configurado, apenas registra e não quebra a ação original.
+- Envios individuais: `safeDispatchNotificationEmail(notificacao, { actor, req, details })`.
+  - Marca `tb_notificacoes.email_sent_at` quando o envio tem sucesso e ignora reenvio se já houver marca.
+- Avisos em massa: `safeDispatchMassMessageEmail({ title, content, actor, req, details, messageIds })`.
+  - Envia **uma** mensagem para cada e-mail de usuário ativo (`user_status: 'A'`) de ADM, PRO e STD.
+  - Dedup por e-mail normalizado (o mesmo endereço não recebe duas vezes), respeita a preferência e roda com concorrência máxima de 5.
+  - Marca `email_sent_at` em `tb_mensagens_professores` para controle de reenvio.
+- Falha de SMTP é sempre não-bloqueante: registra no console e a ação original (aprovar/negar, criar aviso) já foi persistida.
+- Preferência individual: campo `tb_usuarios.notification_email_enabled` (padrão `true`), alternável em **Meu Perfil → Notificações**. O link de descadastro no rodapé do e-mail aponta para essa tela (com `List-Unsubscribe` / `List-Unsubscribe-Post` de 1 clique).
+- Colunas novas (`tb_usuarios.notification_email_enabled`, `tb_notificacoes.email_sent_at`, `tb_mensagens_professores.email_sent_at`) são criadas de forma idempotente por `ensureTurmaSchema()` no boot do servidor.
 
 ---
 

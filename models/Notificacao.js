@@ -25,6 +25,12 @@ const Notificacao = db.sequelize.define('tb_notificacoes', {
     read_at: {
         type: db.Sequelize.DATE,
         allowNull: true
+    },
+    // Preenchido quando o aviso da notificação é disparado por e-mail.
+    // Garante um único envio por notificação e evita duplicidade.
+    email_sent_at: {
+        type: db.Sequelize.DATE,
+        allowNull: true
     }
 });
 

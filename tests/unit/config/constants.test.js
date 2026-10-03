@@ -6,7 +6,10 @@ const {
     RESET_TOKEN_TTL_MS,
     EMAIL_CHANGE_TOKEN_TTL_MS,
     SESSION_IDLE_TIMEOUT_MINUTES,
-    SESSION_IDLE_TIMEOUT_MS
+    SESSION_IDLE_TIMEOUT_MS,
+    PRESENCA_SOLICITACAO_JANELA_DIAS,
+    PRESENCA_SOLICITACAO_DATAS_EXCEPCIONAIS,
+    PRESENCA_SOLICITACAO_EXCECAO_ATE
 } = require('../../../config/constants');
 
 describe('config/constants', () => {
@@ -25,5 +28,16 @@ describe('config/constants', () => {
     test('timeout de inatividade da sessão', () => {
         expect(SESSION_IDLE_TIMEOUT_MINUTES).toBe(10);
         expect(SESSION_IDLE_TIMEOUT_MS).toBe(10 * 60 * 1000);
+    });
+
+    test('janela de solicitação de presença e exceção temporária', () => {
+        expect(PRESENCA_SOLICITACAO_JANELA_DIAS).toBe(7);
+        expect(PRESENCA_SOLICITACAO_DATAS_EXCEPCIONAIS).toEqual([
+            '2026-09-15',
+            '2026-09-17',
+            '2026-09-20',
+            '2026-09-22'
+        ]);
+        expect(PRESENCA_SOLICITACAO_EXCECAO_ATE).toBe('2026-10-06');
     });
 });

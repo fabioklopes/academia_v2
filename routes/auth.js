@@ -159,7 +159,11 @@ function registerAuthRoutes(app, deps) {
             return renderForgotPasswordPage(res, {
                 email,
                 statusMessages: buildForgotPasswordMessages({
-                    errorMessage: 'Informe o e-mail cadastrado para continuar.'
+                    statusMessage: {
+                        variant: 'secondary',
+                        title: 'Informe o e-mail cadastrado',
+                        text: 'Digite o e-mail vinculado ao seu cadastro no campo abaixo para receber o link de redefinição.'
+                    }
                 }),
                 metaUrl: `${req.protocol}://${req.get('host')}/auth/forgot-password`
             });
@@ -217,7 +221,11 @@ function registerAuthRoutes(app, deps) {
             if (!resultadoEnvio) {
                 return renderRequestPage({
                     statusMessages: buildForgotPasswordMessages({
-                        errorMessage: 'Não foi possível enviar a mensagem de redefinição agora. Tente novamente em instantes.'
+                        statusMessage: {
+                            variant: 'danger',
+                            title: 'Mensagem não enviada',
+                            text: `Não foi possível enviar a mensagem de redefinição para ${email}. Confira o endereço informado e tente novamente em instantes.`
+                        }
                     })
                 });
             }
@@ -229,7 +237,11 @@ function registerAuthRoutes(app, deps) {
             console.error('Erro ao processar solicitação de redefinição:', error);
             return renderRequestPage({
                 statusMessages: buildForgotPasswordMessages({
-                    errorMessage: 'Não foi possível concluir a solicitação agora. Tente novamente em instantes.'
+                    statusMessage: {
+                        variant: 'danger',
+                        title: 'Não foi possível concluir a solicitação',
+                        text: 'Ocorreu um erro ao processar sua solicitação. Nenhum link foi enviado. Tente novamente em instantes.'
+                    }
                 })
             });
         }

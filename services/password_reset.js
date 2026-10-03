@@ -17,6 +17,15 @@ const { buildResetPasswordLink } = require('./public_app_links');
 function buildForgotPasswordMessages(options) {
     const messages = [];
 
+    if (options.statusMessage && typeof options.statusMessage === 'object') {
+        const { variant, title, text } = options.statusMessage;
+        messages.push({
+            variant: variant || 'warning',
+            title: title || '',
+            text: text || ''
+        });
+    }
+
     if (typeof options.emailFound === 'boolean') {
         if (options.emailFound) {
             messages.push({
@@ -72,16 +81,10 @@ function buildForgotPasswordMessages(options) {
     if (options.errorMessage) {
         messages.push({
             variant: 'danger',
-            title: 'Não foi possível concluir a solicitação',
+            title: options.errorTitle || 'Não foi possível concluir a solicitação',
             text: options.errorMessage
         });
     }
-
-    messages.push({
-        variant: 'info',
-        title: 'Prazo do link',
-        text: `O link de redefinição pode ser usado por apenas ${RESET_TOKEN_TTL_MINUTES} minutos. Depois disso, será necessário fazer uma nova solicitação.`
-    });
 
     return messages;
 }
@@ -92,7 +95,7 @@ function buildForgotPasswordAcknowledgementMessage() {
             variant: 'primary',
             paragraphs: [
                 'Se o e-mail informado existir no nosso banco de dados, uma mensagem será enviada com um link para a redefinição da senha.',
-                'O prazo para utilização do link é de 10 minutos.',
+                'O prazo para utilização do link é de ' + RESET_TOKEN_TTL_MINUTES + ' minutos.',
                 'Após o uso ou após o período, o link será inutilizado e será necessário fazer uma nova solicitação.'
             ]
         }

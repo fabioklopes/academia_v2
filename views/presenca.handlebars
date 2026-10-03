@@ -754,6 +754,10 @@
         /* ── Dados do servidor ── */
         const rawData = JSON.parse(document.getElementById('presencasData').textContent || '[]');
 
+        /* ── Regra de janela de solicitação (vinda do servidor) ── */
+        const JANELA_DIAS = {{presencaJanelaDias}};
+        const DATAS_EXCEPCIONAIS = {{{presencaExcecoesJSON}}};
+
     // Estrutura de acesso rápido: date_iso → lista de presenças daquele dia (terça pode ter até 2: Gi e No-Gi)
     let presencasByDate = {};
     let presencasById   = {};
@@ -795,14 +799,22 @@
     }
     function limitIso() {
         const d = new Date(now);
-        d.setDate(d.getDate() - 7);
+        d.setDate(d.getDate() - JANELA_DIAS);
         return toIso(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function isDataExcepcional(iso) {
+        return DATAS_EXCEPCIONAIS.indexOf(iso) !== -1;
+    }
+    /** Dentro da janela normal ou liberada pela exceção temporária. */
+    function isWithinWindow(iso) {
+        if (isDataExcepcional(iso)) return true;
+        return iso >= limitIso() && iso <= todayIso();
     }
     function hasActivePresence(iso) {
         return allPresencas.some((p) => p.request_date_iso === iso && p.status !== 'C');
     }
     function isSelectable(iso) {
-        return iso >= limitIso() && iso <= todayIso() && !hasActivePresence(iso) && !selectedDates.has(iso);
+        return isWithinWindow(iso) && !hasActivePresence(iso) && !selectedDates.has(iso);
     }
     function isTuesday(iso) {
         const d = new Date(iso + 'T00:00:00');
@@ -887,7 +899,6 @@
         }
 
         const td = todayIso();
-        const ld = limitIso();
 
         for (let d = 1; d <= daysInMonth; d++) {
             const iso = toIso(calYear, calMonth, d);
@@ -908,7 +919,7 @@
             const hasPres = dayRecords.length > 0;
             const hasActivePres = activeRecords.length > 0;
             const isSel   = selectedDates.has(iso);
-            const inRange = iso >= ld && iso <= td;
+            const inRange = isWithinWindow(iso);
 
             if (hasPres) {
                 const modifier = hasActivePres ? statusModifierForActiveRecords(activeRecords) : 'status-pending';

@@ -67,8 +67,13 @@ const {
 const { createStudentNavLocalsMiddleware } = require('./middleware/student_nav_locals');
 const { createAdminLogLocalsMiddleware } = require('./middleware/admin_log_locals');
 const {
-    EMAIL_CHANGE_TOKEN_TTL_MS
+    EMAIL_CHANGE_TOKEN_TTL_MS,
+    PRESENCA_SOLICITACAO_JANELA_DIAS
 } = require('./config/constants');
+const {
+    datasExcepcionaisLiberadas,
+    validarDataSolicitacao
+} = require('./lib/presenca_janela');
 const { getRandomMotivationalMessage } = require('./utils/motivational_phrases');
 const {
     hasProfessorAccess,
@@ -4840,6 +4845,13 @@ app.get('/presenca', async (req, res) => {
     const itemsPerPage = 10;
     const pagesPerBlock = 8;
 
+    // Janela de solicitação: o calendário do aluno precisa das mesmas regras do servidor.
+    const todayBrYmd = moment().utcOffset(PRESENCA_BR_UTC_OFFSET_MIN).format('YYYY-MM-DD');
+    const janelaSolicitacao = {
+        presencaJanelaDias: PRESENCA_SOLICITACAO_JANELA_DIAS,
+        presencaExcecoesJSON: JSON.stringify(datasExcepcionaisLiberadas(todayBrYmd))
+    };
+
     try {
         const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
         let listaCompleta = [];
@@ -4919,6 +4931,7 @@ app.get('/presenca', async (req, res) => {
         return res.render('presenca', {
             mensagem: req.query.mensagem || '',
             tipoMensagem: req.query.tipo || 'danger',
+            ...janelaSolicitacao,
             presencas: presencasPaginadas,
             todasPresencasJSON: hasProfessorPrivileges ? '[]' : JSON.stringify(listaCompleta),
             hasProfessorPrivileges,
@@ -4940,6 +4953,7 @@ app.get('/presenca', async (req, res) => {
         const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
         return res.render('presenca', {
             mensagem: 'Erro ao carregar presenças: ' + err.message,
+            ...janelaSolicitacao,
             presencas: [],
             todasPresencasJSON: '[]',
             hasProfessorPrivileges,
@@ -5060,27 +5074,13 @@ app.post('/presenca/solicitar', async (req, res) => {
         }
 
         const todayBrYmd = moment().utcOffset(PRESENCA_BR_UTC_OFFSET_MIN).format('YYYY-MM-DD');
-        const limitBrYmd = moment()
-            .utcOffset(PRESENCA_BR_UTC_OFFSET_MIN)
-            .subtract(7, 'days')
-            .format('YYYY-MM-DD');
         const results = [];
         const errors = [];
 
         for (const dateStr of dates) {
-            if (!moment(dateStr, 'YYYY-MM-DD', true).isValid()) {
-                errors.push({ date: dateStr, error: 'Data inválida.' });
-                continue;
-            }
-            if (dateStr > todayBrYmd) {
-                errors.push({ date: dateStr, error: 'Não é permitido solicitar para datas futuras.' });
-                continue;
-            }
-            if (dateStr < limitBrYmd) {
-                errors.push({
-                    date: dateStr,
-                    error: `Anterior ao limite de 7 dias (${moment(limitBrYmd, 'YYYY-MM-DD').format('DD/MM/YYYY')}).`
-                });
+            const erroData = validarDataSolicitacao(dateStr, todayBrYmd);
+            if (erroData) {
+                errors.push({ date: dateStr, error: erroData });
                 continue;
             }
 

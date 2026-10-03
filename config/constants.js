@@ -29,6 +29,21 @@ const SESSION_IDLE_TIMEOUT_MS = (() => {
     return SESSION_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 })();
 
+/** Solicitação de presença só é aceita para os últimos N dias (regra normal). */
+const PRESENCA_SOLICITACAO_JANELA_DIAS = 7;
+
+/**
+ * Exceção temporária à janela acima: aulas específicas ficam liberadas mesmo
+ * fora dos últimos N dias (reabertura de grade de setembro/2026).
+ */
+const PRESENCA_SOLICITACAO_DATAS_EXCEPCIONAIS = ['2026-09-15', '2026-09-17', '2026-09-20', '2026-09-22'];
+
+/**
+ * Último dia (inclusive) para solicitar as datas excepcionais.
+ * Depois desta data a lista acima é ignorada e vale só a janela normal.
+ */
+const PRESENCA_SOLICITACAO_EXCECAO_ATE = '2026-10-06';
+
 module.exports = {
     APP_ACTIVITY_LOG_ACTIONS,
     APP_ACTIVITY_LOG_MAX,
@@ -37,5 +52,8 @@ module.exports = {
     RESET_TOKEN_TTL_MS,
     EMAIL_CHANGE_TOKEN_TTL_MS,
     SESSION_IDLE_TIMEOUT_MINUTES,
-    SESSION_IDLE_TIMEOUT_MS
+    SESSION_IDLE_TIMEOUT_MS,
+    PRESENCA_SOLICITACAO_JANELA_DIAS,
+    PRESENCA_SOLICITACAO_DATAS_EXCEPCIONAIS,
+    PRESENCA_SOLICITACAO_EXCECAO_ATE
 };

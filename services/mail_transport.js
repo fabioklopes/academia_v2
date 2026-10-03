@@ -9,7 +9,10 @@ function getPasswordResetTransportConfig() {
     const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
     const portValue = process.env.SMTP_PORT || process.env.EMAIL_PORT;
     const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-    const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+    const passRaw = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+    // Senhas de app do Google são exibidas agrupadas ("abcd efgh ijkl mnop") e
+    // rejeitadas pelo SMTP se forem enviadas com espaços.
+    const pass = typeof passRaw === 'string' ? passRaw.replace(/\s+/g, '') : passRaw;
 
     if (!user || !pass || (!service && !host)) {
         return null;

@@ -332,6 +332,16 @@ Pasta `services/` — funções chamadas por várias rotas.
 - Constrói assunto, preheader, corpo em HTML e versão texto dos e-mails de notificação.
 - Assunto sempre no formato `CRTN Belém - {{assunto}}` (ex.: `CRTN Belém - Presença negada`).
 - O HTML é responsivo (tabela com `bgcolor` de fallback), traz o autor da ação (Professor/Administrador), os detalhes contextuais e um link "Abrir no sistema".
+- A cor do e-mail segue a categoria da notificação, com as cores oficiais IBJJF da academia:
+
+  | Tom | Categoria | Barra/botão |
+  |-----|-----------|-------------|
+  | `primary` | Comunicados e divulgações em massa | `#0E5C77` |
+  | `danger` | Recusas: cadastro, presença e solicitações | `#8C0E12` |
+  | `warning` | Cancelamentos e prazos de mensagens expirando | `#A75815` |
+  | `success` | Aprovações de cadastro e de presença | `#00602F` |
+
+  O tom pintura o cabeçalho, o botão de acesso, o selo do tipo e a barra lateral do bloco do autor. O texto do selo usa uma variante escura da mesma cor para manter o contraste. `kind` desconhecido cai em `primary`.
 
 ### `notification_email.js`
 

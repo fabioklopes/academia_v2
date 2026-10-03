@@ -21,7 +21,7 @@ const MAX_SUBJECT_LENGTH = 110;
 /** Palavras que acalmam filtros de spam e explicam o motivo do envio. */
 const OPT_OUT_HINT = 'Prefere não receber? Acesse Meu Perfil e desligue "Notificações por e-mail".';
 
-/** Paleta derivada das cores oficiais do sistema de graduação IBJJF. */
+/** Paleta neutra da moldura do e-mail + cor da marca (faixa vermelha). */
 const PALETTE = {
     accent: '#B01116',
     accentDark: '#8C0E12',
@@ -30,14 +30,64 @@ const PALETTE = {
     border: '#E5E7EB',
     pageBg: '#F4F5F7',
     cardBg: '#FFFFFF',
-    softBg: '#F8F9FA',
-    positive: '#007F3D',
-    positiveSoft: '#E7F3EC',
-    negative: '#B01116',
-    negativeSoft: '#FBECEC',
-    neutral: '#4B5563',
-    neutralSoft: '#F1F3F5'
+    softBg: '#F8F9FA'
 };
+
+/**
+ * Cores por categoria de notificação — mesma linguagem de cores usada no
+ * sistema web. Todos os tons saem da paleta oficial IBJJF da academia:
+ *
+ *  - `primary`  comunicados e divulgações em massa (azul);
+ *  - `danger`   recusas: cadastro, presença e solicitações em geral (vermelha);
+ *  - `warning`  cancelamentos e prazos de mensagens expirando (laranja);
+ *  - `success`  aprovações de cadastro e de presença (verde).
+ *
+ * Cada tom traz:
+ *  - `color`    cor da categoria (bordas e destaques);
+ *  - `deep`     versão escura, usada como fundo com texto branco;
+ *  - `soft`     fundo claro do selo;
+ *  - `softInk`  texto do selo sobre `soft` (contraste acessível);
+ *  - `onColor`  texto claro sobre `deep`.
+ */
+const TONES = {
+    primary: {
+        color: '#1890B9',
+        deep: '#0E5C77',
+        soft: '#E6F3F8',
+        softInk: '#0E5C77',
+        onColor: '#CFEDF6'
+    },
+    danger: {
+        color: '#B01116',
+        deep: '#8C0E12',
+        soft: '#FBECEC',
+        softInk: '#8C0E12',
+        onColor: '#F5D6D7'
+    },
+    warning: {
+        color: '#E07E26',
+        deep: '#A75815',
+        soft: '#FDF0E3',
+        softInk: '#A75815',
+        onColor: '#FBE3CC'
+    },
+    success: {
+        color: '#007F3D',
+        deep: '#00602F',
+        soft: '#E7F3EC',
+        softInk: '#00602F',
+        onColor: '#BFE3CE'
+    }
+};
+
+/** Tom usado quando o `kind` é desconhecido. */
+const DEFAULT_TONE = 'primary';
+
+/** Paleta de um tom, com fallback seguro. */
+function resolveTone(tone) {
+    return TONES[tone] || TONES[DEFAULT_TONE];
+}
+
 
 /**
  * Como cada tipo de notificação aparece no assunto, no selo e no texto.
@@ -47,34 +97,28 @@ const NOTIFICATION_PRESENTATION = {
     PRESENCA_APROVADA: {
         subject: 'Presença aprovada',
         label: 'Presença aprovada',
-        tone: 'positive'
+        tone: 'success'
     },
     PRESENCA_NEGADA: {
         subject: 'Presença negada',
         label: 'Presença negada',
-        tone: 'negative'
+        tone: 'danger'
     },
     AVATAR_APROVADO: {
         subject: 'Foto de perfil aprovada',
         label: 'Foto de perfil aprovada',
-        tone: 'positive'
+        tone: 'success'
     },
     AVATAR_NEGADO: {
         subject: 'Foto de perfil não aprovada',
         label: 'Foto de perfil não aprovada',
-        tone: 'negative'
+        tone: 'danger'
     },
     MENSAGEM_EM_MASSA: {
         subject: 'Novo aviso',
         label: 'Comunicado',
-        tone: 'neutral'
+        tone: 'primary'
     }
-};
-
-const TONE_STYLES = {
-    positive: { color: PALETTE.positive, soft: PALETTE.positiveSoft },
-    negative: { color: PALETTE.negative, soft: PALETTE.negativeSoft },
-    neutral: { color: PALETTE.neutral, soft: PALETTE.neutralSoft }
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -169,12 +213,12 @@ function buildSubject({ kind, fallback, extra } = {}) {
     return `${SUBJECT_PREFIX}${limited}`;
 }
 
-/** Metadados visuais (rótulo e cor) do tipo de notificação. */
+/** Metadados visuais (rótulo e tom de cor) do tipo de notificação. */
 function resolvePresentation(kind) {
     return NOTIFICATION_PRESENTATION[kind] || {
         subject: '',
         label: 'Notificação',
-        tone: 'neutral'
+        tone: DEFAULT_TONE
     };
 }
 
@@ -230,7 +274,7 @@ function renderHtml({
     optOutUrl
 } = {}) {
     const presentation = resolvePresentation(kind);
-    const tone = TONE_STYLES[presentation.tone] || TONE_STYLES.neutral;
+    const tone = resolveTone(presentation.tone);
     const actorLabel = buildActorLabel(actor);
     const actorRole = actorRoleLabel(actor && actor.role);
     const actorDescription = buildActorDescription(actor);
@@ -240,13 +284,13 @@ function renderHtml({
     const perfilUrl = String(optOutUrl || '').trim();
 
     const optOutHtml = perfilUrl
-        ? `Prefere não receber? <a href="${escapeHtml(perfilUrl)}" style="color:${PALETTE.accent};">Acesse Meu Perfil e desligue esta opção</a>.`
+        ? `Prefere não receber? <a href="${escapeHtml(perfilUrl)}" style="color:${tone.deep};">Acesse Meu Perfil e desligue esta opção</a>.`
         : 'Prefere não receber? Acesse Meu Perfil e desligue "Notificações por e-mail".';
 
     const actorRow = actorLabel
         ? `
                             <tr>
-                                <td bgcolor="${PALETTE.softBg}" style="padding:12px 16px; background-color:${PALETTE.softBg}; border-left:3px solid ${PALETTE.accent};">
+                                <td bgcolor="${PALETTE.softBg}" style="padding:12px 16px; background-color:${PALETTE.softBg}; border-left:3px solid ${tone.color};">
                                     <p style="margin:0; font-size:13px; color:${PALETTE.muted};">Ação realizada por</p>
                                     <p style="margin:2px 0 0; font-size:14px; color:${PALETTE.ink}; font-weight:700;">${escapeHtml(actorLabel)} <span style="font-weight:400; color:${PALETTE.muted};">· ${escapeHtml(actorRole)}</span></p>
                                 </td>
@@ -259,8 +303,8 @@ function renderHtml({
                                 <td style="padding:8px 24px 24px;">
                                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                                         <tr>
-                                            <td bgcolor="${PALETTE.accent}" align="center" style="border-radius:8px;">
-                                                <a href="${escapeHtml(url)}" style="display:inline-block; background-color:${PALETTE.accent}; color:#FFFFFF; text-decoration:none; font-size:15px; font-weight:700; padding:12px 22px; border-radius:8px;">${escapeHtml(actionLabel)}</a>
+                                            <td bgcolor="${tone.deep}" align="center" style="border-radius:8px;">
+                                                <a href="${escapeHtml(url)}" style="display:inline-block; background-color:${tone.deep}; color:#FFFFFF; text-decoration:none; font-size:15px; font-weight:700; padding:12px 22px; border-radius:8px;">${escapeHtml(actionLabel)}</a>
                                             </td>
                                         </tr>
                                     </table>
@@ -285,14 +329,14 @@ function renderHtml({
         <td align="center" style="padding:24px 12px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${PALETTE.cardBg}" style="max-width:560px; background-color:${PALETTE.cardBg}; border:1px solid ${PALETTE.border}; border-radius:12px; overflow:hidden;">
                 <tr>
-                    <td bgcolor="${PALETTE.accent}" style="background-color:${PALETTE.accent}; padding:20px 24px;">
+                    <td bgcolor="${tone.deep}" style="background-color:${tone.deep}; padding:20px 24px;">
                         <p style="margin:0; font-size:18px; font-weight:800; color:#FFFFFF; letter-spacing:0.3px;">${escapeHtml(ACADEMY_NAME)}</p>
-                        <p style="margin:2px 0 0; font-size:12px; color:#F5D6D7; text-transform:uppercase; letter-spacing:1.2px;">${escapeHtml(ACADEMY_TAGLINE)}</p>
+                        <p style="margin:2px 0 0; font-size:12px; color:${tone.onColor}; text-transform:uppercase; letter-spacing:1.2px;">${escapeHtml(ACADEMY_TAGLINE)}</p>
                     </td>
                 </tr>
                 <tr>
                     <td style="padding:24px 24px 8px;">
-                        <span style="display:inline-block; background-color:${tone.soft}; color:${tone.color}; font-size:12px; font-weight:700; padding:5px 12px; border-radius:999px;">${escapeHtml(presentation.label)}</span>
+                        <span style="display:inline-block; background-color:${tone.soft}; color:${tone.softInk}; font-size:12px; font-weight:700; padding:5px 12px; border-radius:999px;">${escapeHtml(presentation.label)}</span>
                         <h1 style="margin:14px 0 0; font-size:20px; line-height:1.3; color:${PALETTE.ink};">${escapeHtml(title || presentation.label)}</h1>
                         <p style="margin:10px 0 0; font-size:15px; line-height:1.6; color:${PALETTE.ink};">${escapeHtml(body)}</p>
 ${detailsHtml}
@@ -386,6 +430,9 @@ module.exports = {
     MAX_SUBJECT_LENGTH,
     OPT_OUT_HINT,
     PALETTE,
+    TONES,
+    DEFAULT_TONE,
+    resolveTone,
     NOTIFICATION_PRESENTATION,
     buildSubject,
     buildPreheader,

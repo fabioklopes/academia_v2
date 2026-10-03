@@ -3,6 +3,9 @@ const {
     SUBJECT_PREFIX,
     MAX_SUBJECT_LENGTH,
     PALETTE,
+    TONES,
+    DEFAULT_TONE,
+    resolveTone,
     buildSubject,
     buildActorLabel,
     buildActorDescription,
@@ -124,19 +127,38 @@ describe('escapeHtml e sanitizeEmail', () => {
 });
 
 describe('resolvePresentation', () => {
-    test('mapeia os kinds existentes para um selo e uma cor', () => {
-        expect(resolvePresentation('PRESENCA_APROVADA')).toMatchObject({ tone: 'positive' });
-        expect(resolvePresentation('PRESENCA_NEGADA')).toMatchObject({ tone: 'negative' });
-        expect(resolvePresentation('AVATAR_APROVADO')).toMatchObject({ tone: 'positive' });
-        expect(resolvePresentation('AVATAR_NEGADO')).toMatchObject({ tone: 'negative' });
-        expect(resolvePresentation('MENSAGEM_EM_MASSA')).toMatchObject({ tone: 'neutral' });
+    test('mapeia cada kind para a cor da sua categoria', () => {
+        // Aprovações em verde, recusas em vermelho e comunicados em azul.
+        expect(resolvePresentation('PRESENCA_APROVADA')).toMatchObject({ tone: 'success' });
+        expect(resolvePresentation('AVATAR_APROVADO')).toMatchObject({ tone: 'success' });
+        expect(resolvePresentation('PRESENCA_NEGADA')).toMatchObject({ tone: 'danger' });
+        expect(resolvePresentation('AVATAR_NEGADO')).toMatchObject({ tone: 'danger' });
+        expect(resolvePresentation('MENSAGEM_EM_MASSA')).toMatchObject({ tone: 'primary' });
+    });
+
+    test('expõe as quatro categorias de cor pedidas', () => {
+        expect(Object.keys(TONES).sort()).toEqual(['danger', 'primary', 'success', 'warning']);
+    });
+
+    test('todas as cores de um tom são hexadecimais válidos', () => {
+        for (const [nome, tom] of Object.entries(TONES)) {
+            for (const [chave, cor] of Object.entries(tom)) {
+                expect(`${nome}.${chave}: ${cor}`).toMatch(/^.+: #[0-9A-F]{6}$/);
+            }
+        }
+    });
+
+    test('resolveTone cai no tom padrão para valor desconhecido', () => {
+        expect(resolveTone('warning')).toBe(TONES.warning);
+        expect(resolveTone('inexistente')).toBe(TONES[DEFAULT_TONE]);
+        expect(resolveTone()).toBe(TONES[DEFAULT_TONE]);
     });
 
     test('kind desconhecido cai no rótulo genérico sem quebrar', () => {
         expect(resolvePresentation('QUALQUER_COISA')).toEqual({
             subject: '',
             label: 'Notificação',
-            tone: 'neutral'
+            tone: DEFAULT_TONE
         });
     });
 });
@@ -223,9 +245,37 @@ describe('renderHtml', () => {
 
     test('usa bgcolor como fallback para o Outlook desktop', () => {
         const html = renderHtml(base);
-        expect(html).toContain(`bgcolor="${PALETTE.accent}"`);
+        expect(html).toContain(`bgcolor="${TONES.success.deep}"`);
         expect(html).toContain(`bgcolor="${PALETTE.pageBg}"`);
         expect(html).toContain(`bgcolor="${PALETTE.cardBg}"`);
+    });
+
+    test('pinta o corpo com a cor da categoria da notificação', () => {
+        const casos = [
+            { kind: 'PRESENCA_APROVADA', tone: 'success' },
+            { kind: 'AVATAR_APROVADO', tone: 'success' },
+            { kind: 'PRESENCA_NEGADA', tone: 'danger' },
+            { kind: 'AVATAR_NEGADO', tone: 'danger' },
+            { kind: 'MENSAGEM_EM_MASSA', tone: 'primary' }
+        ];
+
+        for (const { kind, tone } of casos) {
+            const html = renderHtml({ ...base, kind });
+            const cor = TONES[tone];
+
+            // Cabeçalho e botão usam a versão escura com texto branco.
+            expect(html).toContain(`bgcolor="${cor.deep}"`);
+            expect(html).toContain(`background-color:${cor.deep}`);
+            // Selo claro com texto escuro, para manter o contraste.
+            expect(html).toContain(`background-color:${cor.soft}; color:${cor.softInk};`);
+            // Destaque lateral do bloco do autor.
+            expect(html).toContain(`border-left:3px solid ${cor.color};`);
+        }
+    });
+
+    test('cada categoria sai com a cor diferente das outras', () => {
+        const cores = ['primary', 'danger', 'warning', 'success'].map((t) => TONES[t].deep);
+        expect(new Set(cores).size).toBe(4);
     });
 
     test('usa bgcolor na tabela de detalhes para o Outlook', () => {
